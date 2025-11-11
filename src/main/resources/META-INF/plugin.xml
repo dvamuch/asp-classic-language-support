@@ -1,0 +1,35 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>dvamuch.asp-classic-language-support</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>ASP Classic Language Support</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor url="https://github.com/dvamuch">Dvamuch</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+        Adds support for ASP Classic files (.asp, .asa, .inc). Highlight, formatting and code completion.
+    ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="ASP Classic"
+                  implementationClass="com.dvamuch.asp.AspFileType"
+                  fieldName="INSTANCE"
+                  language="ASP Classic"
+                  extensions="asp;asa;inc"/>
+
+        <lang.syntaxHighlighterFactory language="ASP Classic"
+                                       implementationClass="com.dvamuch.asp.AspSyntaxHighlighterFactory"/>
+    </extensions>
+</idea-plugin>

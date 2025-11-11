@@ -1,0 +1,1 @@
+rootProject.name = "asp-classic-language-support"
