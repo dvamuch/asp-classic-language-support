@@ -45,25 +45,22 @@ tasks {
         sourceCompatibility = "21"
         targetCompatibility = "21"
     }
+
+    generateLexer {
+        sourceFile.set(file("src/main/kotlin/com/dvamuch/asp/asp.flex"))
+        targetDir.set("src/main/kotlin/com/dvamuch/asp/")
+        targetClass.set("_AspLexer")
+        purgeOldFiles.set(true)
+    }
+
+    compileKotlin {
+        dependsOn(generateLexer)
+    }
+
 }
 
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
-}
-
-// Настраиваем генерацию JFlex вручную
-tasks.register<Exec>("generateAspLexer") {
-    workingDir = projectDir
-    commandLine = listOf(
-        "java", "-jar",
-        "/path/to/jflex.jar", // Укажите путь к jflex.jar
-        "-d", "src/main/kotlin/com/dvamuch/asp",
-        "src/main/kotlin/com/dvamuch/asp/asp.flex"
-    )
-}
-
-tasks.named("compileKotlin") {
-    dependsOn("generateAspLexer")
 }
