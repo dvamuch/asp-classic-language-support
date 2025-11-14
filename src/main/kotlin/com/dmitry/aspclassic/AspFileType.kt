@@ -1,12 +1,13 @@
 package com.dmitry.aspclassic
 
+import com.intellij.lang.html.HTMLLanguage
 import com.intellij.openapi.fileTypes.LanguageFileType
 import javax.swing.Icon
 
 /**
- * ASP file type definition
+ * ASP file type definition - uses HTML language
  */
-class AspFileType private constructor() : LanguageFileType(AspLanguage.INSTANCE) {
+class AspFileType private constructor() : LanguageFileType(HTMLLanguage.INSTANCE) {
     companion object {
         @JvmStatic
         val INSTANCE = AspFileType()

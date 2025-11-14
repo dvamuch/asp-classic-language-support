@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
-    alias(libs.plugins.grammarKit) // Grammar-Kit Plugin for parser generation
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -18,38 +17,6 @@ version = providers.gradleProperty("pluginVersion").get()
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)
-}
-
-// Configure source sets for generated code
-sourceSets {
-    main {
-        java.srcDirs("src/main/gen")
-    }
-}
-
-// Configure Grammar-Kit
-tasks {
-    generateLexer {
-        sourceFile.set(file("src/main/kotlin/com/dmitry/aspclassic/lexer/Asp.flex"))
-        targetOutputDir.set(file("src/main/gen/com/dmitry/aspclassic/parser"))
-        purgeOldFiles.set(true)
-    }
-    
-    generateParser {
-        sourceFile.set(file("src/main/kotlin/com/dmitry/aspclassic/parser/Asp.bnf"))
-        targetRootOutputDir.set(file("src/main/gen"))
-        pathToParser.set("com/dmitry/aspclassic/parser/AspParser.java")
-        pathToPsiRoot.set("com/dmitry/aspclassic/psi")
-        purgeOldFiles.set(true)
-    }
-    
-    compileKotlin {
-        dependsOn(generateLexer, generateParser)
-    }
-    
-    compileJava {
-        dependsOn(generateLexer, generateParser)
-    }
 }
 
 // Configure project's dependencies
@@ -73,7 +40,7 @@ dependencies {
         if (localPath.isPresent) {
             local(localPath.get())
         } else {
-            create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
+        create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
         }
 
         // Plugin Dependencies. Uses `platformBundledPlugins` property from the gradle.properties file for bundled IntelliJ Platform plugins.
@@ -191,6 +158,29 @@ intellijPlatformTesting {
             plugins {
                 robotServerPlugin()
             }
+        }
+        
+        // Задача для запуска с тестовым проектом
+        register("runIdeWithTestProject") {
+            task {
+                args = listOf(
+                    "/Users/dmitry-zap/PhpstormProjects/asp-test-project",
+                    "/Users/dmitry-zap/PhpstormProjects/asp-test-project/CustomerMail2Send.asp"
+                )
+            }
+        }
+    }
+}
+
+// Добавляем возможность открытия проекта и файла через системные свойства
+tasks {
+    runIde {
+        systemProperty("idea.auto.reload.plugins", "true")
+        
+        // Поддержка открытия проекта через параметр
+        val openProject = System.getProperty("ide.open.project")
+        if (openProject != null) {
+            args = listOf(openProject)
         }
     }
 }

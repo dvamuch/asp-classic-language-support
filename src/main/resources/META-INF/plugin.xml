@@ -5,22 +5,12 @@
     <vendor>Dmitry</vendor>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.xml</depends>
 
     <description><![CDATA[
-    <p>Comprehensive language support for Classic ASP (Active Server Pages) in JetBrains IDEs.</p>
-    
-    <h3>Features:</h3>
-    <ul>
-        <li>Syntax highlighting for VBScript and ASP directives</li>
-        <li>Code completion for ASP objects (Request, Response, Session, Application, Server)</li>
-        <li>Code completion for VBScript keywords and built-in functions</li>
-        <li>Code folding for ASP blocks and control structures</li>
-        <li>Brace matching and automatic insertion</li>
-        <li>Comment/uncomment support (VBScript style)</li>
-        <li>Structure view for functions and subroutines</li>
-        <li>File templates for new ASP files and includes</li>
-        <li>Color settings customization</li>
-    </ul>
+    <p>Basic file type support for Classic ASP (Active Server Pages) in JetBrains IDEs.</p>
+    <p>Treats ASP file content as HTML for IDE processing (syntax highlighting, code completion, etc.).</p>
     
     <h3>Supported File Extensions:</h3>
     <ul>
@@ -30,51 +20,11 @@
     ]]></description>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Language and File Type -->
+        <!-- Language and File Type - uses HTML parser internally -->
         <fileType name="ASP" 
                   implementationClass="com.dmitry.aspclassic.AspFileType" 
-                  fieldName="INSTANCE" 
-                  language="ASP" 
+                  fieldName="INSTANCE"
+                  language="HTML"
                   extensions="asp;asa"/>
-        
-        <!-- Parser Definition -->
-        <lang.parserDefinition language="ASP" 
-                               implementationClass="com.dmitry.aspclassic.AspParserDefinition"/>
-        
-        <!-- Syntax Highlighter -->
-        <lang.syntaxHighlighterFactory language="ASP" 
-                                       implementationClass="com.dmitry.aspclassic.AspSyntaxHighlighterFactory"/>
-        
-        <!-- Color Settings -->
-        <colorSettingsPage implementation="com.dmitry.aspclassic.AspColorSettingsPage"/>
-        
-        <!-- Code Completion -->
-        <completion.contributor language="ASP" 
-                               implementationClass="com.dmitry.aspclassic.AspCompletionContributor"/>
-        
-        <!-- Brace Matching -->
-        <lang.braceMatcher language="ASP" 
-                          implementationClass="com.dmitry.aspclassic.AspBraceMatcher"/>
-        
-        <!-- Commenter -->
-        <lang.commenter language="ASP" 
-                       implementationClass="com.dmitry.aspclassic.AspCommenter"/>
-        
-        <!-- Code Folding -->
-        <lang.foldingBuilder language="ASP" 
-                            implementationClass="com.dmitry.aspclassic.AspFoldingBuilder"/>
-        
-        <!-- Structure View -->
-        <lang.psiStructureViewFactory language="ASP" 
-                                      implementationClass="com.dmitry.aspclassic.AspStructureViewFactory"/>
-        
-        <!-- File Templates -->
-        <fileTemplateGroup implementation="com.dmitry.aspclassic.AspFileTemplateProvider"/>
-        
-        <!-- Additional Features -->
-        <lang.quoteHandler language="ASP" 
-                          implementationClass="com.intellij.codeInsight.editorActions.SimpleTokenSetQuoteHandler">
-            <constructor-arg>com.dmitry.aspclassic.psi.AspTypes.STRING</constructor-arg>
-        </lang.quoteHandler>
     </extensions>
 </idea-plugin>
