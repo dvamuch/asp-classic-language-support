@@ -1,0 +1,106 @@
+{
+  parserClass="com.dmitry.aspclassic.parser.AspParser"
+  
+  extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
+  
+  psiClassPrefix="Asp"
+  psiImplClassSuffix="Impl"
+  psiPackage="com.dmitry.aspclassic.psi"
+  psiImplPackage="com.dmitry.aspclassic.psi.impl"
+  
+  elementTypeHolderClass="com.dmitry.aspclassic.psi.AspTypes"
+  elementTypeClass="com.dmitry.aspclassic.psi.AspElementType"
+  tokenTypeClass="com.dmitry.aspclassic.psi.AspTokenType"
+  
+  tokens=[
+    ASP_START='<%'
+    ASP_END='%>'
+    ASP_OUTPUT_START='<%='
+    ASP_DIRECTIVE_START='<%@'
+    
+    LPAREN='('
+    RPAREN=')'
+    LBRACE='{'
+    RBRACE='}'
+    COMMA=','
+    DOT='.'
+    COLON=':'
+    LINE_CONTINUATION='_'
+    
+    CRLF='regexp:\r\n|\r|\n'
+    COMMENT="regexp:'[^\r\n]*"
+    HTML_CONTENT='regexp:[^<]+'
+    
+    KEYWORD='regexp:(Dim|Set|If|Then|Else|ElseIf|End|For|To|Step|Next|While|Wend|Do|Loop|Until|Function|Sub|Exit|Call|Select|Case|With|New|Class|Public|Private|Property|Get|Let|Default|On|Error|Resume|GoTo|ReDim|Preserve|And|Or|Not|Xor|Eqv|Imp|Mod|Is|Nothing|Empty|Null|True|False|Option|Explicit|ByVal|ByRef|Const)'
+    ASP_OBJECT='regexp:(Request|Response|Session|Application|Server|ObjectContext)'
+    
+    STRING="regexp:(\"([^\"\r\n]|\"\")*\")|('([^'\r\n]|'')*')"
+    NUMBER='regexp:[0-9]+(\.[0-9]+)?'
+    IDENTIFIER='regexp:[a-zA-Z_][a-zA-Z0-9_]*'
+    OPERATOR='regexp:(=|\+|-|\*|/|\\|\^|&|<|>|<=|>=|<>|=>)'
+  ]
+}
+
+aspFile ::= item*
+
+private item ::= (HTML_CONTENT | aspBlock | aspOutputBlock | aspDirectiveBlock | CRLF)
+
+aspBlock ::= ASP_START aspCode ASP_END
+
+aspOutputBlock ::= ASP_OUTPUT_START expression ASP_END
+
+aspDirectiveBlock ::= ASP_DIRECTIVE_START directiveContent ASP_END
+
+directiveContent ::= (IDENTIFIER | OPERATOR | STRING | NUMBER)*
+
+aspCode ::= statement*
+
+private statement ::= statementWithRecovery
+private statementWithRecovery ::= COMMENT | CRLF | complexStatement | simpleStatement
+
+private complexStatement ::= ifStatement | forStatement | whileStatement | doStatement | 
+                            functionDeclaration | subDeclaration | selectStatement | withStatement
+
+private simpleStatement ::= dimStatement | setStatement | assignmentOrCall
+
+dimStatement ::= KEYWORD IDENTIFIER (COMMA IDENTIFIER)* CRLF?
+
+setStatement ::= KEYWORD IDENTIFIER OPERATOR expression CRLF?
+
+assignmentOrCall ::= leftHandSide (OPERATOR expression)? CRLF?
+
+leftHandSide ::= (IDENTIFIER | ASP_OBJECT) (DOT IDENTIFIER | LPAREN argumentList? RPAREN)*
+
+ifStatement ::= KEYWORD expression KEYWORD aspCode (KEYWORD aspCode)* KEYWORD KEYWORD CRLF?
+
+forStatement ::= KEYWORD IDENTIFIER OPERATOR expression KEYWORD expression (KEYWORD expression)? CRLF? aspCode KEYWORD CRLF?
+
+whileStatement ::= KEYWORD expression CRLF? aspCode KEYWORD CRLF?
+
+doStatement ::= KEYWORD (KEYWORD expression)? CRLF? aspCode KEYWORD (KEYWORD expression)? CRLF?
+
+functionDeclaration ::= KEYWORD IDENTIFIER LPAREN parameterList? RPAREN CRLF? aspCode KEYWORD KEYWORD CRLF?
+
+subDeclaration ::= KEYWORD IDENTIFIER LPAREN parameterList? RPAREN CRLF? aspCode KEYWORD KEYWORD CRLF?
+
+selectStatement ::= KEYWORD KEYWORD expression CRLF? caseClause* KEYWORD KEYWORD CRLF?
+
+caseClause ::= KEYWORD expression CRLF? aspCode
+
+withStatement ::= KEYWORD expression CRLF? aspCode KEYWORD KEYWORD CRLF?
+
+parameterList ::= parameter (COMMA parameter)*
+
+parameter ::= (KEYWORD)? IDENTIFIER
+
+argumentList ::= expression (COMMA expression)*
+
+expression ::= primary (OPERATOR primary | DOT IDENTIFIER)*
+
+primary ::= (STRING | NUMBER | IDENTIFIER | ASP_OBJECT | LPAREN expression RPAREN | 
+            KEYWORD | functionCall | arrayAccess)
+
+functionCall ::= IDENTIFIER LPAREN argumentList? RPAREN
+
+arrayAccess ::= IDENTIFIER LPAREN expression RPAREN
+

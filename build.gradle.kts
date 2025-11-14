@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.grammarKit) // Grammar-Kit Plugin for parser generation
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -17,6 +18,38 @@ version = providers.gradleProperty("pluginVersion").get()
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)
+}
+
+// Configure source sets for generated code
+sourceSets {
+    main {
+        java.srcDirs("src/main/gen")
+    }
+}
+
+// Configure Grammar-Kit
+tasks {
+    generateLexer {
+        sourceFile.set(file("src/main/kotlin/com/dmitry/aspclassic/lexer/Asp.flex"))
+        targetOutputDir.set(file("src/main/gen/com/dmitry/aspclassic/parser"))
+        purgeOldFiles.set(true)
+    }
+    
+    generateParser {
+        sourceFile.set(file("src/main/kotlin/com/dmitry/aspclassic/parser/Asp.bnf"))
+        targetRootOutputDir.set(file("src/main/gen"))
+        pathToParser.set("com/dmitry/aspclassic/parser/AspParser.java")
+        pathToPsiRoot.set("com/dmitry/aspclassic/psi")
+        purgeOldFiles.set(true)
+    }
+    
+    compileKotlin {
+        dependsOn(generateLexer, generateParser)
+    }
+    
+    compileJava {
+        dependsOn(generateLexer, generateParser)
+    }
 }
 
 // Configure project's dependencies
@@ -36,7 +69,12 @@ dependencies {
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
+        val localPath = providers.gradleProperty("localPlatformPath")
+        if (localPath.isPresent) {
+            local(localPath.get())
+        } else {
+            create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
+        }
 
         // Plugin Dependencies. Uses `platformBundledPlugins` property from the gradle.properties file for bundled IntelliJ Platform plugins.
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
