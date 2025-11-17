@@ -13,55 +13,43 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
 
-/**
- * Parser definition for ASP language
- */
 class AspParserDefinition : ParserDefinition {
 
-    override fun createLexer(project: Project?): Lexer {
-        return AspLexer()
-    }
+    override fun createLexer(project: Project?): Lexer = AspLexer()
 
-    override fun createParser(project: Project?): PsiParser {
-        return AspParser()
-    }
+    override fun createParser(project: Project?): PsiParser = AspParser()
 
-    override fun getFileNodeType(): IFileElementType {
-        return FILE
-    }
+    override fun getFileNodeType(): IFileElementType = FILE
 
-    override fun getCommentTokens(): TokenSet {
-        return TokenSet.EMPTY
-    }
+    override fun getCommentTokens(): TokenSet = TokenSet.EMPTY
 
-    override fun getStringLiteralElements(): TokenSet {
-        return TokenSet.EMPTY
-    }
+    override fun getStringLiteralElements(): TokenSet = TokenSet.EMPTY
 
     override fun createElement(node: ASTNode): PsiElement {
+        println("PARSER_DEF: Creating element for node type: ${node.elementType}")
         return AspPsiElementFactory.createElement(node)
     }
 
     override fun createFile(viewProvider: FileViewProvider): PsiFile {
+        println("PARSER_DEF: Creating ASP file")
         return AspFile(viewProvider)
     }
 
-    override fun getWhitespaceTokens(): TokenSet {
-        return TokenSet.WHITE_SPACE
+    override fun getWhitespaceTokens(): TokenSet = TokenSet.WHITE_SPACE
+
+    override fun spaceExistenceTypeBetweenTokens(left: ASTNode, right: ASTNode): ParserDefinition.SpaceRequirements {
+        return ParserDefinition.SpaceRequirements.MAY
     }
 
     companion object {
         val FILE = IFileElementType(AspLanguage.INSTANCE)
 
-        // HTML_CONTENT должен быть здесь, чтобы парсер создавал для него элементы
-        val HTML_ELEMENTS = TokenSet.create(AspTokenType.HTML_CONTENT)
-
-        // Все токены, которые должны создавать PSI элементы
+        // Define which element types we create
         val ELEMENT_TYPES = TokenSet.create(
+            AspTokenType.HTML_CONTENT,
             AspTokenType.ASP_OPEN_TAG,
             AspTokenType.ASP_CLOSE_TAG,
-            AspTokenType.ASP_SCRIPT_CONTENT,
-            AspTokenType.HTML_CONTENT
+            AspTokenType.ASP_SCRIPT_CONTENT
         )
     }
 }

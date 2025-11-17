@@ -1,26 +1,26 @@
 package com.dmitry.aspclassic.psi.impl
 
+import com.dmitry.aspclassic.psi.AspContent
 import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.lang.ASTNode
 import com.intellij.psi.LiteralTextEscaper
 import com.intellij.psi.PsiLanguageInjectionHost
-import com.dmitry.aspclassic.psi.AspContent
-import com.dmitry.aspclassic.psi.AspContentTextEscaper
 
-/**
- * Implementation of content PSI element
- */
 class AspContentImpl(node: ASTNode) : ASTWrapperPsiElement(node), AspContent {
 
-    override fun isValidHost(): Boolean = true
+    override fun isValidHost(): Boolean {
+        val text = text
+        val isValid = text.isNotBlank() && !text.trim().startsWith("<%")
+        println("AspContentImpl.isValidHost: $isValid for text: '${text.take(30)}...'")
+        return isValid
+    }
 
     override fun updateText(text: String): PsiLanguageInjectionHost {
-        // For now, we don't support modifying ASP content through injection
-        // This would require creating a new PSI element with the updated text
-        throw UnsupportedOperationException("ASP content modification not supported")
+        println("AspContentImpl.updateText: '${text.take(30)}...'")
+        return this
     }
 
     override fun createLiteralTextEscaper(): LiteralTextEscaper<out PsiLanguageInjectionHost> {
-        return AspContentTextEscaper(this)
+        return LiteralTextEscaper.createSimple(this)
     }
 }
