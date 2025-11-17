@@ -5,15 +5,15 @@ import com.intellij.openapi.fileTypes.LanguageFileType
 import javax.swing.Icon
 
 /**
- * ASP file type definition - uses HTML language
+ * Определение типа файла ASP - на основе кастомного AspLanguage
  */
-class AspFileType private constructor() : LanguageFileType(HTMLLanguage.INSTANCE) {
-    companion object {
+class AspFileType private constructor() : LanguageFileType(AspLanguage.INSTANCE) {
+    companion object { // Игнорим ворнинг
         @JvmStatic
         val INSTANCE = AspFileType()
     }
 
-    override fun getName(): String = "ASP"
+    override fun getName(): String = "ASP Classic"
 
     override fun getDescription(): String = "ASP Classic file"
 

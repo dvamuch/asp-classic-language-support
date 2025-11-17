@@ -21,10 +21,21 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Language and File Type - uses HTML parser internally -->
-        <fileType name="ASP" 
-                  implementationClass="com.dmitry.aspclassic.AspFileType" 
+        <fileType name="ASP Classic"
+                  implementationClass="com.dmitry.aspclassic.AspFileType"
+                  language="ASP Classic"
                   fieldName="INSTANCE"
-                  language="HTML"
-                  extensions="asp;asa"/>
+                  extensions="asp;asa;inc"/>
+
+        <!-- Parser Definition -->
+        <lang.parserDefinition language="ASP Classic"
+                               implementationClass="com.dmitry.aspclassic.parser.AspParserDefinition"/>
+
+        <!-- Syntax Highlighter -->
+        <lang.syntaxHighlighterFactory implementationClass="com.dmitry.aspclassic.highlight.AspSyntaxHighlighterFactory"
+                                language="ASP Classic"/>
+
+        <!-- HTML Language Injector -->
+        <multiHostInjector implementation="com.dmitry.aspclassic.injection.AspHtmlInjector"/>
     </extensions>
 </idea-plugin>
