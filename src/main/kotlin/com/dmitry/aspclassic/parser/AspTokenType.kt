@@ -9,17 +9,18 @@ import com.dmitry.aspclassic.AspLanguage
 class AspTokenType(debugName: String) : IElementType(debugName, AspLanguage.INSTANCE) {
     companion object {
         // ASP tags
-        @JvmStatic
+        @JvmField
         val ASP_OPEN_TAG = AspTokenType("ASP_OPEN_TAG")  // <%
-        @JvmStatic
+
+        @JvmField
         val ASP_CLOSE_TAG = AspTokenType("ASP_CLOSE_TAG") // %>
 
         // ASP content inside tags
-        @JvmStatic
+        @JvmField
         val ASP_SCRIPT_CONTENT = AspTokenType("ASP_SCRIPT_CONTENT") // VBScript code inside <% %>
 
         // HTML and text content outside ASP tags
-        @JvmStatic
+        @JvmField
         val HTML_CONTENT = AspTokenType("HTML_CONTENT")
     }
 }

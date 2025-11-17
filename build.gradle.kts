@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    id("org.jetbrains.grammarkit") version "2023.3.0.1"
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -131,6 +132,15 @@ kover {
     }
 }
 
+// Include the generated files in the source set
+sourceSets {
+    main {
+        java {
+            srcDirs("src/main/gen")
+        }
+    }
+}
+
 tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
@@ -138,6 +148,17 @@ tasks {
 
     publishPlugin {
         dependsOn(patchChangelog)
+    }
+
+    generateLexer {
+        sourceFile.set(file("src/main/jflex/AspLexer.flex"))
+        targetOutputDir.set(file("src/main/gen/com/dmitry/aspclassic/parser"))
+//        skeleton.set(project.file("idea-flex.skeleton")) // Опционально
+        purgeOldFiles.set(true)
+    }
+
+    compileKotlin {
+        dependsOn(generateLexer)
     }
 }
 

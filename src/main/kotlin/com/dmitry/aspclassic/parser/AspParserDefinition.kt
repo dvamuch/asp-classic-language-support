@@ -15,7 +15,7 @@ import com.intellij.psi.tree.TokenSet
 
 class AspParserDefinition : ParserDefinition {
 
-    override fun createLexer(project: Project?): Lexer = AspLexer()
+    override fun createLexer(project: Project?): Lexer = AspFlexLexerAdapter()
 
     override fun createParser(project: Project?): PsiParser = AspParser()
 

@@ -1,11 +1,11 @@
 package com.dmitry.aspclassic.lang.parser
 
-import com.dmitry.aspclassic.parser.AspLexer
+import com.dmitry.aspclassic.parser.AspFlexLexerAdapter
 import org.junit.Test
 
 class AspLexerTest {
     @Test
-    fun testLexer() {
+    fun testJFlexLexer() {
         val testCode = """
             <%@LANGUAGE="VBSCRIPT" CODEPAGE="65001"%>
             <html>
@@ -18,9 +18,9 @@ class AspLexerTest {
             </html>
         """.trimIndent()
 
-        println("=== TESTING ASP LEXER ===")
+        println("=== TESTING JFlex ASP LEXER ===")
 
-        val lexer = AspLexer()
+        val lexer = AspFlexLexerAdapter()
         lexer.start(testCode, 0, testCode.length, 0)
 
         var tokenCount = 0
