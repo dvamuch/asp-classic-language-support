@@ -8,6 +8,9 @@
 A generated project contains the following content structure:
 
 ```
+
+Note for release builds: remove the debug annotator `dvamuch.aspclassiclanguagesupport2.lang.AspHtmlDebugAnnotator`
+and its `<annotator>` registration in `src/main/resources/META-INF/plugin.xml`.
 .
 ├── .run/                   Predefined Run/Debug Configurations
 ├── build/                  Output build directory
