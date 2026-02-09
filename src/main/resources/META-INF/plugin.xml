@@ -37,6 +37,8 @@
                                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspEditorHighlighterProvider"/>
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
+        <annotator language="HTML"
+                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspHtmlDebugAnnotator"/>
         <toolWindow id="MyToolWindow" factoryClass="dvamuch.aspclassiclanguagesupport2.MyToolWindowFactory"
                     icon="AllIcons.Toolwindows.ToolWindowPalette"/>
     </extensions>

@@ -27,7 +27,7 @@ class AspFileViewProvider(
         val parserDefinition = LanguageParserDefinitions.INSTANCE.forLanguage(language) ?: return null
         val psiFile = parserDefinition.createFile(this)
         if (language == templateDataLanguage && psiFile is PsiFileImpl) {
-            psiFile.contentElementType = AspTokenTypes.FILE
+            psiFile.contentElementType = AspTokenTypes.TEMPLATE_FILE
         }
         return psiFile
     }
