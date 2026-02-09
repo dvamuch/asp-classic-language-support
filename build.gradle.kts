@@ -44,6 +44,10 @@ tasks {
         sourceCompatibility = "21"
         targetCompatibility = "21"
     }
+
+    runIde {
+        jvmArgs("-Dide.internal=true")
+    }
 }
 
 kotlin {
