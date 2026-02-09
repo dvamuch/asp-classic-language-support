@@ -12,11 +12,12 @@
 
 vbFile ::= statement_list?
 
-statement_list ::= statement (stmt_separator statement)* stmt_separator?
+statement_list ::= stmt_separator* statement (stmt_separator* statement)* stmt_separator*
 stmt_separator ::= EOL | COLON
 
 statement ::=
     option_stmt
+  | comment_stmt
   | const_stmt
   | dim_stmt
   | visibility_stmt
@@ -109,12 +110,12 @@ mult_expr ::= pow_expr ((STAR | SLASH | IDIV | MOD) pow_expr)*
 pow_expr ::= unary_expr (POW unary_expr)*
 unary_expr ::= (PLUS | MINUS) unary_expr | primary_expr
 
-primary_expr ::= literal | qualified_identifier | call_expr | LPAREN expr RPAREN | NEW qualified_identifier
+primary_expr ::= literal | call_expr | qualified_identifier | LPAREN expr RPAREN | NEW qualified_identifier
 call_expr ::= qualified_identifier call_args
 qualified_identifier ::= id (DOT id)*
 
 literal ::= NUMBER | FLOAT | HEX_NUMBER | OCT_NUMBER | STRING | DATE | TRUE | FALSE | NULL | EMPTY | NOTHING
-id ::= IDENTIFIER
+id ::= IDENTIFIER {mixin="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.impl.VbIdMixin"}
 
 comment_stmt ::= COMMENT
 

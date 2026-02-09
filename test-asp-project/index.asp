@@ -53,7 +53,7 @@
         <p>This should show an error (unclosed tag):</p>
         <!-- <div>This div is not closed -->
     </div>
-    
+    <% ' kek lol %>
     <footer>
         <p><small>ASP Classic Language Support - Test Suite</small></p>
     </footer>
