@@ -33,7 +33,13 @@ class AspParserDefinition : ParserDefinition {
 
     override fun getStringLiteralElements(): TokenSet = TokenSet.EMPTY
 
-    override fun createElement(node: ASTNode): PsiElement = ASTWrapperPsiElement(node)
+    override fun createElement(node: ASTNode): PsiElement {
+        return if (node.elementType == AspTokenTypes.OUTER) {
+            AspOuterPsiElement(node.elementType, node.text)
+        } else {
+            ASTWrapperPsiElement(node)
+        }
+    }
 
     override fun createFile(viewProvider: FileViewProvider): PsiFile = AspFile(viewProvider)
 
