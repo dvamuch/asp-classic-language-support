@@ -50,6 +50,14 @@ tasks {
 
     runIde {
         jvmArgs("-Dide.internal=true")
+        doFirst {
+            val sandboxDir = file("build/idea-sandbox")
+            if (sandboxDir.exists()) {
+                sandboxDir.walkTopDown()
+                    .filter { it.isFile && it.name == "idea.log" }
+                    .forEach { it.writeText("") }
+            }
+        }
     }
 }
 

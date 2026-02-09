@@ -33,6 +33,11 @@
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptParserDefinition"/>
         <lang.syntaxHighlighterFactory language="VBScript"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
+        <psi.referenceContributor language="VBScript"
+                                  implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbReferenceContributor"/>
+        <startupActivity implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugStartupActivity"/>
+        <projectActivity implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugProjectActivity"/>
+        <gotoDeclarationHandler implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugGotoDeclarationHandler"/>
         <fileType name="ASP" language="ASP"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileType"
                   fieldName="INSTANCE" extensions="asp"/>
