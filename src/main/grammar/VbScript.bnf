@@ -1,0 +1,121 @@
+{
+  parserClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.parser.VbScriptParser"
+  psiClassPrefix="Vb"
+  psiImplClassSuffix="Impl"
+  psiPackage="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi"
+  psiImplPackage="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.impl"
+  elementTypeHolderClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes"
+  tokenTypeClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTokenType"
+  elementTypeClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbElementType"
+  generateVisitor=true
+}
+
+vbFile ::= statement_list?
+
+statement_list ::= statement (stmt_separator statement)* stmt_separator?
+stmt_separator ::= EOL | COLON
+
+statement ::=
+    option_stmt
+  | const_stmt
+  | dim_stmt
+  | visibility_stmt
+  | class_stmt
+  | function_stmt
+  | sub_stmt
+  | property_stmt
+  | if_stmt
+  | select_stmt
+  | for_stmt
+  | foreach_stmt
+  | do_stmt
+  | while_stmt
+  | with_stmt
+  | exit_stmt
+  | on_error_stmt
+  | redim_stmt
+  | erase_stmt
+  | execute_stmt
+  | assignment_stmt
+  | call_stmt
+  | expr_stmt
+
+option_stmt ::= OPTION EXPLICIT
+
+visibility_stmt ::= PUBLIC_KW | PRIVATE_KW
+
+const_stmt ::= CONST const_decl (COMMA const_decl)*
+const_decl ::= id EQ expr
+
+dim_stmt ::= DIM var_decl (COMMA var_decl)*
+var_decl ::= id (LPAREN (COMMA? expr)? RPAREN)?
+
+class_stmt ::= CLASS id stmt_separator class_body? END CLASS
+class_body ::= statement_list
+
+function_stmt ::= FUNCTION id param_list? stmt_separator statement_list? END FUNCTION
+sub_stmt ::= SUB id param_list? stmt_separator statement_list? END SUB
+property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator statement_list? END PROPERTY
+
+param_list ::= LPAREN param (COMMA param)* RPAREN
+param ::= (BYVAL | BYREF)? (OPTIONAL)? id (EQ expr)?
+
+if_stmt ::= IF expr THEN stmt_separator? statement_list? elseif_block* else_block? END IF
+elseif_block ::= ELSEIF expr THEN stmt_separator? statement_list?
+else_block ::= ELSE stmt_separator? statement_list?
+
+select_stmt ::= SELECT CASE expr stmt_separator? case_block+ case_else_block? END SELECT
+case_block ::= CASE case_expr_list stmt_separator? statement_list?
+case_else_block ::= CASE ELSE stmt_separator? statement_list?
+case_expr_list ::= case_expr (COMMA case_expr)*
+case_expr ::= expr | (IS rel_op expr)
+
+for_stmt ::= FOR id EQ expr TO expr (STEP expr)? stmt_separator? statement_list? NEXT id?
+foreach_stmt ::= FOR EACH id IN expr stmt_separator? statement_list? NEXT id?
+
+do_stmt ::= DO (WHILE | UNTIL)? expr? stmt_separator? statement_list? LOOP (WHILE | UNTIL)? expr?
+while_stmt ::= WHILE expr stmt_separator? statement_list? WEND
+
+with_stmt ::= WITH expr stmt_separator? statement_list? END WITH
+
+exit_stmt ::= EXIT (FUNCTION | SUB | PROPERTY | FOR | DO)
+
+on_error_stmt ::= ON ERROR RESUME NEXT | ON ERROR GOTO NUMBER
+
+redim_stmt ::= REDIM (PRESERVE)? redim_decl (COMMA redim_decl)*
+redim_decl ::= id LPAREN expr (COMMA expr)* RPAREN
+
+erase_stmt ::= ERASE id (COMMA id)*
+
+execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
+
+assignment_stmt ::= (SET | LET)? lvalue EQ expr
+lvalue ::= qualified_identifier
+
+call_stmt ::= CALL? qualified_identifier call_args?
+call_args ::= LPAREN (arg (COMMA arg)*)? RPAREN
+arg ::= expr
+
+expr_stmt ::= expr
+
+expr ::= or_expr
+or_expr ::= and_expr ((OR | XOR | EQV | IMP) and_expr)*
+and_expr ::= not_expr (AND not_expr)*
+not_expr ::= (NOT)* compare_expr
+compare_expr ::= concat_expr ((EQ | NEQ | LT | GT | LE | GE | IS) concat_expr)*
+concat_expr ::= add_expr (AMP add_expr)*
+add_expr ::= mult_expr ((PLUS | MINUS) mult_expr)*
+mult_expr ::= pow_expr ((STAR | SLASH | IDIV | MOD) pow_expr)*
+pow_expr ::= unary_expr (POW unary_expr)*
+unary_expr ::= (PLUS | MINUS) unary_expr | primary_expr
+
+primary_expr ::= literal | qualified_identifier | call_expr | LPAREN expr RPAREN | NEW qualified_identifier
+call_expr ::= qualified_identifier call_args
+qualified_identifier ::= id (DOT id)*
+
+literal ::= NUMBER | FLOAT | HEX_NUMBER | OCT_NUMBER | STRING | DATE | TRUE | FALSE | NULL | EMPTY | NOTHING
+id ::= IDENTIFIER
+
+comment_stmt ::= COMMENT
+
+rel_op ::= EQ | NEQ | LT | GT | LE | GE

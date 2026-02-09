@@ -26,6 +26,13 @@
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
+        <fileType name="VBScript" language="VBScript"
+                  implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType"
+                  fieldName="INSTANCE" extensions="vbs"/>
+        <lang.parserDefinition language="VBScript"
+                               implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="VBScript"
+                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
         <fileType name="ASP" language="ASP"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileType"
                   fieldName="INSTANCE" extensions="asp"/>
@@ -37,6 +44,7 @@
                                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspEditorHighlighterProvider"/>
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
+        <languageInjector implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletInjector"/>
         <annotator language="HTML"
                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspHtmlDebugAnnotator"/>
         <toolWindow id="MyToolWindow" factoryClass="dvamuch.aspclassiclanguagesupport2.MyToolWindowFactory"
