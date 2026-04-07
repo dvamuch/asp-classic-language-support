@@ -22,6 +22,7 @@ class VbScriptSyntaxHighlighter : SyntaxHighlighter {
             LITERALS.contains(tokenType) -> LITERAL_KEYS
             STRINGS.contains(tokenType) -> STRING_KEYS
             NUMBERS.contains(tokenType) -> NUMBER_KEYS
+            IDENTIFIERS.contains(tokenType) -> VARIABLE_KEYS
             else -> emptyArray()
         }
     }
@@ -54,6 +55,7 @@ class VbScriptSyntaxHighlighter : SyntaxHighlighter {
 
         private val STRINGS = TokenSet.create(VbTypes.STRING)
         private val COMMENTS = TokenSet.create(VbTypes.COMMENT)
+        private val IDENTIFIERS = TokenSet.create(VbTypes.IDENTIFIER)
 
         private val NUMBERS = TokenSet.create(
             VbTypes.NUMBER, VbTypes.FLOAT, VbTypes.HEX_NUMBER, VbTypes.OCT_NUMBER
@@ -69,6 +71,12 @@ class VbScriptSyntaxHighlighter : SyntaxHighlighter {
         private val NUMBER_KEYS = arrayOf(DefaultLanguageHighlighterColors.NUMBER)
         private val LITERAL_KEYS = arrayOf(DefaultLanguageHighlighterColors.PREDEFINED_SYMBOL)
         private val COMMENT_KEYS = arrayOf(DefaultLanguageHighlighterColors.LINE_COMMENT)
+        private val VARIABLE_KEYS = arrayOf(
+            TextAttributesKey.find("PHP_VARIABLE")
+                ?: TextAttributesKey.find("PHP_LOCAL_VARIABLE")
+                ?: TextAttributesKey.find("PHP_GLOBAL_VARIABLE")
+                ?: DefaultLanguageHighlighterColors.LOCAL_VARIABLE
+        )
     }
 }
 

@@ -21,7 +21,8 @@ class AspHtmlDebugAnnotator : Annotator {
 
         val file = tag.containingFile ?: return
         val vFile = file.virtualFile ?: return
-        if (!vFile.extension.equals("asp", ignoreCase = true)) return
+        val extension = vFile.extension?.lowercase() ?: ""
+        if (extension != "asp" && extension != "inc") return
 
         val path = vFile.path
         if (!loggedFiles.add(path)) return

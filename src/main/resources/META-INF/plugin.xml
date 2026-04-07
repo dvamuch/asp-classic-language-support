@@ -5,17 +5,21 @@
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>Asp-classic-language-support-2</name>
+    <name>Asp Classic Language</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.yourcompany.com">YourCompany</vendor>
+    <vendor url="https://github.com/dvamuch">Dvamuch</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
-    <description><![CDATA[
-        Enter short description for your plugin here.<br>
-        <em>most HTML tags may be used</em>
-    ]]></description>
+    <description>
+        Plugin adding support of ASP Classic files with VBScript (.asp, .asa, .inc) to PHPStorm.
+        Current state:
+        — HTML part is handled by PHPStorm;
+        — VBScript code in ASP Blocks has basic highlighting.
+
+        Even in this state it helps a lot while working with old-ass legacy code.
+    </description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
@@ -35,12 +39,9 @@
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
         <psi.referenceContributor language="VBScript"
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbReferenceContributor"/>
-        <startupActivity implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugStartupActivity"/>
-        <projectActivity implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugProjectActivity"/>
-        <gotoDeclarationHandler implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbDebugGotoDeclarationHandler"/>
         <fileType name="ASP" language="ASP"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileType"
-                  fieldName="INSTANCE" extensions="asp"/>
+                  fieldName="INSTANCE" extensions="asp;inc"/>
         <lang.parserDefinition language="ASP"
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspParserDefinition"/>
         <lang.fileViewProviderFactory language="ASP"
@@ -49,9 +50,7 @@
                                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspEditorHighlighterProvider"/>
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
-        <languageInjector implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletInjector"/>
-        <annotator language="HTML"
-                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspHtmlDebugAnnotator"/>
+        <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
         <toolWindow id="MyToolWindow" factoryClass="dvamuch.aspclassiclanguagesupport2.MyToolWindowFactory"
                     icon="AllIcons.Toolwindows.ToolWindowPalette"/>
     </extensions>
