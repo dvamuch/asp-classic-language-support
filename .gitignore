@@ -30,3 +30,4 @@ test-asp-project
 /src/main/grammar/test.bnf
 /src/main/kotlin/dvamuch/aspclassiclanguagesupport2/lang/AspDumpPsiAction.kt
 
+/.intellijPlatform/

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "1.0-SNAPSHOT"
+version = "v0.0.1-alpha"
 
 repositories {
     mavenCentral()
