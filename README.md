@@ -2,7 +2,8 @@
 
 An IntelliJ Platform plugin that adds support for **ASP Classic** files with **VBScript** engine (`.asp`, `.inc`).
 
-Modern IDEs often lack proper support for legacy technologies like ASP Classic. This plugin aims to make the maintenance of "old-but-gold" legacy codebases more comfortable by providing essential IDE features within PHPStorm, IntelliJ IDEA, and other JetBrains tools.
+Modern IDEs often lack proper support for legacy technologies like ASP Classic. 
+This plugin aims to make the maintenance of legacy codebases more comfortable by providing essential IDE features within PHPStorm, IntelliJ IDEA, and other JetBrains tools.
 
 ## Current Status (MVP)
 
@@ -20,7 +21,7 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 
 ### Visual Demonstration
 <!-- Placeholder for Demo GIF/Image -->
-![ASP Classic Support Demo](https://via.placeholder.com/800x450?text=ASP+Classic+Plugin+Demo+Placeholder)
+![ASP Classic Support Demo](./media/demo.png)
 *Support for syntax highlighting and scriptlet blocks.*
 
 ## Roadmap (Planned Features)
