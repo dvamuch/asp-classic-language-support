@@ -1,24 +1,25 @@
 <!-- Plugin Configuration File: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN, cannot be changed between the plugin versions. -->
-    <id>dvamuch.asp-classic-language-support-2</id>
+    <id>dvamuch.asp-classic-language-support</id>
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
     <name>Asp Classic Language</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://github.com/dvamuch">Artem Selifonov (Dvamuch)</vendor>
+    <vendor url="https://github.com/Dvamuch">Artem Selifonov (Dvamuch)</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
     <description>
-        Plugin adding support of ASP Classic files with VBScript (.asp, .asa, .inc) to PHPStorm.
+        An IntelliJ Platform plugin that adds support for ASP Classic files with VBScript engine (.asp, .inc).
         Current state:
-        — HTML part is handled by PHPStorm;
-        — VBScript code in ASP Blocks has basic highlighting.
+        — HTML part is handled by the IDE;
+        — VBScript code in ASP Blocks has basic highlighting;
+        — Multi-host injection allows handling multiple scriptlet blocks as a single context.
 
-        Even in this state it helps a lot while working with old-ass legacy code.
+        Even in this state it helps a lot while working with old legacy codebases.
     </description>
 
     <!-- Product and plugin compatibility requirements.
