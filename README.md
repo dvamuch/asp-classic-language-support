@@ -20,11 +20,11 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 - **Basic Navigation**: "Jump to Definition" for local variables and functions within the same file (experimental).
 
 ### Visual Demonstration
-<!-- Placeholder for Demo GIF/Image -->
 ![ASP Classic Support Demo](./media/demo.png)
 *Support for syntax highlighting and scriptlet blocks.*
 
 ## Roadmap (Planned Features)
+- [ ] **Go To Definition (Stable)**: Restore and stabilize local symbol navigation in ASP scriptlets and VBScript files.
 - [ ] **Full Symbol Resolve**: Improved cross-file navigation and support for `Server.CreateObject`.
 - [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
 - [ ] **Include Support**: Resolve files included via `<!-- #include ... -->`.

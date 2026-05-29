@@ -61,9 +61,13 @@ property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator state
 param_list ::= LPAREN param (COMMA param)* RPAREN
 param ::= (BYVAL | BYREF)? (OPTIONAL)? id (EQ expr)?
 
-if_stmt ::= IF expr THEN stmt_separator? statement_list? elseif_block* else_block? END IF
-elseif_block ::= ELSEIF expr THEN stmt_separator? statement_list?
-else_block ::= ELSE stmt_separator? statement_list?
+if_stmt ::= if_block_stmt | if_single_line_stmt
+if_block_stmt ::= IF expr THEN if_block_branch? elseif_block* else_block? END IF
+if_single_line_stmt ::= IF expr THEN inline_if_branch? (ELSE inline_if_branch?)? (END IF)?
+inline_if_branch ::= statement (COLON statement)*
+if_block_branch ::= stmt_separator statement_list? | statement_list
+elseif_block ::= ELSEIF expr THEN if_block_branch?
+else_block ::= ELSE if_block_branch?
 
 select_stmt ::= SELECT CASE expr stmt_separator? case_block+ case_else_block? END SELECT
 case_block ::= CASE case_expr_list stmt_separator? statement_list?
@@ -93,9 +97,11 @@ execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
 lvalue ::= qualified_identifier
 
-call_stmt ::= CALL? qualified_identifier call_args?
-call_args ::= LPAREN (arg (COMMA arg)*)? RPAREN
-arg ::= expr
+call_stmt ::= CALL? qualified_identifier (call_args | bare_call_args)?
+call_args ::= LPAREN call_arg_list? RPAREN
+call_arg_list ::= call_arg (COMMA call_arg)*
+call_arg ::= expr?
+bare_call_args ::= expr (COMMA call_arg)*
 
 expr_stmt ::= expr
 
@@ -110,8 +116,9 @@ mult_expr ::= pow_expr ((STAR | SLASH | IDIV | MOD) pow_expr)*
 pow_expr ::= unary_expr (POW unary_expr)*
 unary_expr ::= (PLUS | MINUS) unary_expr | primary_expr
 
-primary_expr ::= literal | call_expr | qualified_identifier | LPAREN expr RPAREN | NEW qualified_identifier
-call_expr ::= qualified_identifier call_args
+primary_expr ::= literal | postfix_ref_expr | LPAREN expr RPAREN | NEW qualified_identifier
+postfix_ref_expr ::= id postfix_suffix*
+postfix_suffix ::= DOT id | call_args
 qualified_identifier ::= id (DOT id)*
 
 literal ::= NUMBER | FLOAT | HEX_NUMBER | OCT_NUMBER | STRING | DATE | TRUE | FALSE | NULL | EMPTY | NOTHING
