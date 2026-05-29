@@ -17,6 +17,7 @@ import static dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes.*;
 %type IElementType
 
 %state IN_PAREN
+%state AFTER_DOT
 
 %{
   private int parenDepth = 0;
@@ -46,11 +47,21 @@ REM_COMMENT = "rem"[ \t][^\r\n]*
 <YYINITIAL>{COMMENT} { return COMMENT; }
 {REM_COMMENT} { return COMMENT; }
 
+<AFTER_DOT>{WS} { return WHITE_SPACE; }
+<AFTER_DOT>{IDENTIFIER} {
+  if (parenDepth > 0) yybegin(IN_PAREN); else yybegin(YYINITIAL);
+  return IDENTIFIER;
+}
+<AFTER_DOT>. {
+  if (parenDepth > 0) yybegin(IN_PAREN); else yybegin(YYINITIAL);
+  yypushback(1);
+}
+
 <YYINITIAL,IN_PAREN>"(" { parenDepth++; yybegin(IN_PAREN); return LPAREN; }
 <YYINITIAL,IN_PAREN>")" { if (parenDepth > 0) parenDepth--; if (parenDepth == 0) yybegin(YYINITIAL); return RPAREN; }
 "," { return COMMA; }
 ":" { return COLON; }
-"." { return DOT; }
+"." { yybegin(AFTER_DOT); return DOT; }
 "=" { return EQ; }
 "<>" { return NEQ; }
 "<=" { return LE; }
