@@ -24,12 +24,12 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 *Support for syntax highlighting and scriptlet blocks.*
 
 ## Roadmap (Planned Features)
-- [ ] **Go To Definition (Stable)**: Restore and stabilize local symbol navigation in ASP scriptlets and VBScript files.
-- [ ] **Full Symbol Resolve**: Improved cross-file navigation and support for `Server.CreateObject`.
-- [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
+- [ ] **Performance**: Keep editing and language injection responsive in large legacy files.
 - [ ] **Include Support**: Resolve files included via `<!-- #include ... -->`.
 - [ ] **Formatters**: Basic code formatting for VBScript blocks.
-- [ ] **Debugger**: Integration with Windows debugging tools (high complexity).
+- [ ] **Editor Essentials**: Commenting, folding, structure view, and block matching.
+- [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
+- [ ] **Go To Definition (Stable)**: Scope-aware local navigation and cross-file navigation through includes.
 
 ## Contributing
 
