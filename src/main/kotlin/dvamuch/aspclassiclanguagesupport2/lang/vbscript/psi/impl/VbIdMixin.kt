@@ -9,6 +9,7 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbNamedElement
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbPsiFactory
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbReference
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbResolveUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
 abstract class VbIdMixin(node: ASTNode) : ASTWrapperPsiElement(node), VbId, VbNamedElement {
@@ -24,11 +25,14 @@ abstract class VbIdMixin(node: ASTNode) : ASTWrapperPsiElement(node), VbId, VbNa
         return this
     }
 
-    override fun getReference(): PsiReference = VbReference(this)
+    override fun getReference(): PsiReference? {
+        return if (VbResolveUtil.isReferenceCandidate(this)) VbReference(this) else null
+    }
 
     override fun getReferences(): Array<PsiReference> {
         val refs = ReferenceProvidersRegistry.getReferencesFromProviders(this)
         if (refs.isNotEmpty()) return refs
-        return arrayOf(getReference())
+        val reference = getReference() ?: return PsiReference.EMPTY_ARRAY
+        return arrayOf(reference)
     }
 }

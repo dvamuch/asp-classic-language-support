@@ -6,6 +6,20 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 
 class VbScriptRegressionParsingTest : BasePlatformTestCase() {
+    fun testParsesEmptyProcedureParameterLists() {
+        assertParses(
+            """
+            Sub Ping()
+                Response.Write "pong"
+            End Sub
+
+            Function CurrentUser()
+                CurrentUser = "guest"
+            End Function
+            """.trimIndent()
+        )
+    }
+
     fun testParsesBareCallWithCommaSeparatedArguments() {
         assertParses(
             """
