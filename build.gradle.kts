@@ -25,7 +25,6 @@ dependencies {
         // Add plugin dependencies for compilation here, example:
         // bundledPlugin("com.intellij.java")
     }
-    implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable-jvm:0.3.8")
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -27,7 +27,6 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.xml</depends>
 
-    <resource-bundle>messages.MyMessageBundle</resource-bundle>
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
@@ -52,7 +51,5 @@
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
         <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
-        <toolWindow id="MyToolWindow" factoryClass="dvamuch.aspclassiclanguagesupport2.MyToolWindowFactory"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
     </extensions>
 </idea-plugin>

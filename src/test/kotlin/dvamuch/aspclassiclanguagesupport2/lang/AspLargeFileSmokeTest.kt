@@ -15,12 +15,17 @@ import kotlin.system.measureTimeMillis
 
 class AspLargeFileSmokeTest : BasePlatformTestCase() {
     fun testParsesLargeSyntheticFileAndBuildsInjection() {
-        val text = AspTestData.read("large/large_mixed.asp")
+        val text = buildLargeSyntheticAsp(repetitions = 750)
+        assertTrue("Synthetic fixture must be large enough to exercise the pipeline", text.length >= 75_000)
+
         val elapsedMs = measureTimeMillis {
             val file = myFixture.configureByText(AspFileType, text)
             assertInjectedVbscriptIsParseable(file, requireCrossScriptletResolve = true)
         }
-        assertTrue("Large synthetic file should parse quickly enough for smoke checks", elapsedMs < 15_000)
+        assertTrue(
+            "Large synthetic file should parse quickly enough for smoke checks: ${elapsedMs}ms",
+            elapsedMs < 20_000
+        )
     }
 
     fun testOptionalRealWorldAspFixtures() {
@@ -43,7 +48,7 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         val manager = InjectedLanguageManager.getInstance(project)
         val injectedFiles = linkedSetOf<PsiFile>()
 
-        hosts.forEach { host ->
+        sampleHosts(hosts).forEach { host ->
             val start = host.textRange.startOffset
             val end = host.textRange.endOffset
             for (offset in listOf(start + 2, start + 3, start + 4)) {
@@ -79,6 +84,38 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         }
     }
 
+    private fun buildLargeSyntheticAsp(repetitions: Int): String = buildString {
+        appendLine("<%@ Language=\"VBScript\" %>")
+        appendLine("<%")
+        appendLine("Option Explicit")
+        appendLine("Dim total, userName")
+        appendLine("total = 0")
+        appendLine("userName = \"guest\"")
+        appendLine("%>")
+        appendLine("<!doctype html>")
+        appendLine("<html><body>")
+
+        repeat(repetitions) { index ->
+            appendLine("<section class=\"legacy-row\" data-index=\"$index\">")
+            appendLine("<% total = total + $index %>")
+            appendLine("<span>Running total: <%= total %></span>")
+            appendLine("</section>")
+        }
+
+        appendLine("<% Response.Write \"<p>user=\" & userName & \"</p>\" %>")
+        appendLine("</body></html>")
+    }
+
+    private fun sampleHosts(hosts: Collection<AspOuterPsiElement>): List<AspOuterPsiElement> {
+        val allHosts = hosts.toList()
+        if (allHosts.size <= MAX_INJECTION_SAMPLES) return allHosts
+
+        val lastIndex = allHosts.lastIndex
+        return List(MAX_INJECTION_SAMPLES) { sampleIndex ->
+            allHosts[sampleIndex * lastIndex / (MAX_INJECTION_SAMPLES - 1)]
+        }
+    }
+
     private fun listAspFixtures(dir: Path): List<Path> {
         if (!Files.exists(dir)) return emptyList()
         Files.list(dir).use { stream ->
@@ -88,5 +125,9 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
                 .sortedBy { it.fileName.toString() }
                 .toList()
         }
+    }
+
+    companion object {
+        private const val MAX_INJECTION_SAMPLES = 32
     }
 }

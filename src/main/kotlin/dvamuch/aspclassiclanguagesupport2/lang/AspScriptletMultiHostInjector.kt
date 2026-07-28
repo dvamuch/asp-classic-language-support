@@ -2,19 +2,14 @@ package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.lang.html.HTMLLanguage
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SyntaxTraverser
-import com.intellij.psi.templateLanguages.OuterLanguageElementImpl
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
-import java.util.concurrent.ConcurrentHashMap
 
 class AspScriptletMultiHostInjector : MultiHostInjector {
-    private val logger = Logger.getInstance(AspScriptletMultiHostInjector::class.java)
-
     override fun elementsToInjectIn(): List<Class<out PsiElement>> {
         return listOf(PsiFile::class.java)
     }
@@ -24,23 +19,16 @@ class AspScriptletMultiHostInjector : MultiHostInjector {
         if (!psiFile.language.isKindOf(HTMLLanguage.INSTANCE)) return
         if (psiFile.viewProvider !is AspFileViewProvider) return
 
-        var hostCount = 0
-        var injectedCount = 0
         var injecting = false
         val traverser = SyntaxTraverser.psiTraverser(psiFile)
         for (element in traverser) {
             val aspHost = element as? AspOuterPsiElement ?: continue
-            hostCount++
             val info = scriptletInfo(aspHost) ?: continue
             if (!injecting) {
                 registrar.startInjecting(VbScriptLanguage)
                 injecting = true
             }
             registrar.addPlace(info.prefix, "\n", aspHost, info.range)
-            injectedCount++
-        }
-        if (hostCount == 0) {
-            return
         }
         if (injecting) {
             registrar.doneInjecting()
