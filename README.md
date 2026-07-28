@@ -18,6 +18,7 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 - **Multi-Host Injection**: Properly handles multiple scriptlet blocks as a single VBScript context.
 - **Basic HTML Support**: HTML parts of the ASP files are handled by the IDE's built-in HTML support.
 - **Basic Navigation**: "Jump to Definition" for local variables and functions within the same file (experimental).
+- **Include Navigation**: Resolves `file` and `virtual` paths in `<!-- #include ... -->` directives.
 
 ### Visual Demonstration
 ![ASP Classic Support Demo](./media/demo.png)
@@ -25,7 +26,8 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 
 ## Roadmap (Planned Features)
 - [ ] **Performance**: Keep editing and language injection responsive in large legacy files.
-- [ ] **Include Support**: Resolve files included via `<!-- #include ... -->`.
+- [x] **Include Navigation**: Resolve `file` and `virtual` paths in `<!-- #include ... -->`.
+- [ ] **Include-aware Symbols**: Use the include graph for cross-file navigation and completion.
 - [ ] **Formatters**: Basic code formatting for VBScript blocks.
 - [ ] **Editor Essentials**: Commenting, folding, structure view, and block matching.
 - [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
