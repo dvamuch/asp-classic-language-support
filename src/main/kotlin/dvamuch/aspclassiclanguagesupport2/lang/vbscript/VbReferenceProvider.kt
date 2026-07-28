@@ -14,6 +14,7 @@ class VbReferenceProvider : PsiReferenceProvider() {
         val id = if (element is VbId) element
         else PsiTreeUtil.getParentOfType(element, VbId::class.java, false)
             ?: return PsiReference.EMPTY_ARRAY
+        if (!VbResolveUtil.isReferenceCandidate(id)) return PsiReference.EMPTY_ARRAY
         return arrayOf(VbLeafReference(element, id))
     }
 

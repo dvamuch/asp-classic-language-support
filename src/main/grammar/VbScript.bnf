@@ -58,7 +58,7 @@ function_stmt ::= FUNCTION id param_list? stmt_separator statement_list? END FUN
 sub_stmt ::= SUB id param_list? stmt_separator statement_list? END SUB
 property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator statement_list? END PROPERTY
 
-param_list ::= LPAREN param (COMMA param)* RPAREN
+param_list ::= LPAREN (param (COMMA param)*)? RPAREN
 param ::= (BYVAL | BYREF)? (OPTIONAL)? id (EQ expr)?
 
 if_stmt ::= if_block_stmt | if_single_line_stmt
