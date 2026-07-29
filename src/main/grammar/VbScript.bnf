@@ -95,9 +95,9 @@ erase_stmt ::= ERASE id (COMMA id)*
 execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
 
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
-lvalue ::= postfix_ref_expr
+lvalue ::= postfix_ref_expr | with_member_ref_expr
 
-call_stmt ::= CALL? qualified_identifier (call_args | bare_call_args)?
+call_stmt ::= CALL? (qualified_identifier | with_qualified_identifier) (call_args | bare_call_args)?
 call_args ::= LPAREN call_arg_list? RPAREN
 call_arg_list ::= call_arg (COMMA call_arg)*
 call_arg ::= expr?
@@ -116,10 +116,12 @@ mult_expr ::= pow_expr ((STAR | SLASH | IDIV | MOD) pow_expr)*
 pow_expr ::= unary_expr (POW unary_expr)*
 unary_expr ::= (PLUS | MINUS) unary_expr | primary_expr
 
-primary_expr ::= literal | postfix_ref_expr | LPAREN expr RPAREN | NEW qualified_identifier
+primary_expr ::= literal | postfix_ref_expr | with_member_ref_expr | LPAREN expr RPAREN | NEW qualified_identifier
 postfix_ref_expr ::= id postfix_suffix*
+with_member_ref_expr ::= DOT id postfix_suffix*
 postfix_suffix ::= DOT id | call_args
 qualified_identifier ::= id (DOT id)*
+with_qualified_identifier ::= DOT id (DOT id)*
 
 literal ::= NUMBER | FLOAT | HEX_NUMBER | OCT_NUMBER | STRING | DATE | TRUE | FALSE | NULL | EMPTY | NOTHING
 id ::= IDENTIFIER {mixin="dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.impl.VbIdMixin"}

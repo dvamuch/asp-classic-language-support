@@ -94,7 +94,21 @@ class VbIncludeFindUsagesTest : BasePlatformTestCase() {
     fun testSameNamedFunctionFromAnotherIncludeIsNotReported() {
         val declarationFile = myFixture.addFileToProject(
             "site/inc/sendmailwithlog.asp",
-            "<% Function SMTPSendMail() : End Function %>"
+            """
+            <%
+            Function SMTPSendMail()
+                With cdoConfig.Fields
+                    .Item("smtpserver") = Application("SMTP")
+                    .Update
+                End With
+                With message
+                    .BodyPart.CharSet = "utf-8"
+                    .Send()
+                End With
+                SMTPSendMail = "OK"
+            End Function
+            %>
+            """.trimIndent()
         )
         myFixture.addFileToProject(
             "site/inc/sendmail.asp",
@@ -112,8 +126,119 @@ class VbIncludeFindUsagesTest : BasePlatformTestCase() {
 
         val usages = findUsages(declaration)
 
+        assertEquals(2, usages.size)
+        assertEquals(
+            setOf(declarationFile.virtualFile, expectedConsumer.virtualFile),
+            usages.mapTo(linkedSetOf()) { it.virtualFile }
+        )
+    }
+
+    fun testSameNamedIncludeTargetFromAnotherDirectoryIsNotReported() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/library-a/shared.inc",
+            "<% Const SharedValue = 1 %>"
+        )
+        myFixture.addFileToProject(
+            "site/library-b/shared.inc",
+            "<% Const SharedValue = 2 %>"
+        )
+        val expectedConsumer = myFixture.addFileToProject(
+            "site/pages/a.asp",
+            "<!--#include file=\"../library-a/shared.inc\" --><% value = SharedValue %>"
+        )
+        myFixture.addFileToProject(
+            "site/pages/b.asp",
+            "<!--#include file=\"../library-b/shared.inc\" --><% value = SharedValue %>"
+        )
+        val declaration = idAt(declarationFile, "Const SharedValue", "SharedValue")
+
+        val usages = findUsages(declaration)
+
         assertEquals(1, usages.size)
         assertEquals(expectedConsumer.virtualFile, usages.single().virtualFile)
+    }
+
+    fun testFirstIncludedDeclarationWinsWhenConsumerIncludesTwoImplementations() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/inc/sendmailwithlog.asp",
+            "<% Function SMTPSendMail() : End Function %>"
+        )
+        myFixture.addFileToProject(
+            "site/inc/sendmailwithlog1.asp",
+            "<% Function SMTPSendMail() : End Function %>"
+        )
+        val expectedConsumer = myFixture.addFileToProject(
+            "site/pages/target-first.asp",
+            """
+            <!--#include file="../inc/sendmailwithlog.asp" -->
+            <!--#include file="../inc/sendmailwithlog1.asp" -->
+            <% result = SMTPSendMail() %>
+            """.trimIndent()
+        )
+        myFixture.addFileToProject(
+            "site/pages/copy-first.asp",
+            """
+            <!--#include file="../inc/sendmailwithlog1.asp" -->
+            <!--#include file="../inc/sendmailwithlog.asp" -->
+            <% result = SMTPSendMail() %>
+            """.trimIndent()
+        )
+        val declaration = idAt(declarationFile, "Function SMTPSendMail", "SMTPSendMail")
+
+        val usages = findUsages(declaration)
+
+        assertEquals(1, usages.size)
+        assertEquals(expectedConsumer.virtualFile, usages.single().virtualFile)
+    }
+
+    fun testFindsUsageAfterUnrelatedConsumerParseError() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/inc/constants.inc",
+            "<% Const SharedValue = 1 %>"
+        )
+        val consumer = myFixture.addFileToProject(
+            "site/page.asp",
+            """
+            <!--#include file="inc/constants.inc" -->
+            <%
+            If True Then
+            End If
+            End If
+            Response.Write SharedValue
+            %>
+            """.trimIndent()
+        )
+        val declaration = idAt(declarationFile, "Const SharedValue", "SharedValue")
+
+        val usages = findUsages(declaration)
+
+        assertEquals(1, usages.size)
+        assertEquals(consumer.virtualFile, usages.single().virtualFile)
+    }
+
+    fun testLexicalSearchIgnoresStringsCommentsAndMemberNames() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/inc/library.inc",
+            "<% Function SharedFunction() : End Function %>"
+        )
+        val consumer = myFixture.addFileToProject(
+            "site/page.asp",
+            """
+            <!--#include file="inc/library.inc" -->
+            <%
+            text = "SharedFunction"
+            ' SharedFunction
+            value = object.SharedFunction
+            result = SharedFunction()
+            %>
+            """.trimIndent()
+        )
+        val declaration = idAt(declarationFile, "Function SharedFunction", "SharedFunction")
+
+        val usages = findUsages(declaration)
+
+        assertEquals(1, usages.size)
+        assertEquals(consumer.virtualFile, usages.single().virtualFile)
     }
 
     fun testIncludeCycleHasNoDuplicates() {

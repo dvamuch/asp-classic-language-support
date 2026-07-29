@@ -50,10 +50,7 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
         }
         if (!localCompleted) return false
 
-        for (usage in VbIncludeUsageSearcher.find(declarationId, userScope)) {
-            ProgressManager.checkCanceled()
-            if (!processor.process(usage)) return false
-        }
-        return true
+        ProgressManager.checkCanceled()
+        return VbIncludeUsageSearcher.process(declarationId, userScope, processor)
     }
 }
