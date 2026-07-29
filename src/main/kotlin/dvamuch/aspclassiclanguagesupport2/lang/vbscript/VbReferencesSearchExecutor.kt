@@ -1,6 +1,7 @@
 package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
@@ -16,6 +17,13 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbNamedElement
 
 class VbReferencesSearchExecutor : QueryExecutor<PsiReference, ReferencesSearch.SearchParameters> {
     override fun execute(
+        queryParameters: ReferencesSearch.SearchParameters,
+        consumer: Processor<in PsiReference>
+    ): Boolean = ReadAction.compute<Boolean, RuntimeException> {
+        executeInReadAction(queryParameters, consumer)
+    }
+
+    private fun executeInReadAction(
         queryParameters: ReferencesSearch.SearchParameters,
         consumer: Processor<in PsiReference>
     ): Boolean {
