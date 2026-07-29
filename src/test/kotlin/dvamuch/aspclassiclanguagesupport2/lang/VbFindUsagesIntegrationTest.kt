@@ -1,6 +1,7 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
@@ -232,6 +233,32 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
 
         assertEquals(1, references.size)
         assertEquals(setOf(selectedConsumer.virtualFile), topLevelFiles(references))
+    }
+
+    fun testFindUsagesCanRunOnBackgroundThreadWithoutExistingReadAction() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/includes/globals.inc",
+            """
+            <%
+            Dim SharedValue
+            %>
+            """.trimIndent()
+        )
+        val consumer = myFixture.addFileToProject(
+            "site/page.asp",
+            """
+            <!--#include file="includes/globals.inc" -->
+            <% Response.Write SharedValue %>
+            """.trimIndent()
+        )
+        val declaration = idAt(declarationFile, "Dim SharedValue", "SharedValue")
+
+        val references = ApplicationManager.getApplication()
+            .executeOnPooledThread<Collection<PsiReference>> { findReferences(declaration) }
+            .get()
+
+        assertEquals(1, references.size)
+        assertEquals(setOf(consumer.virtualFile), topLevelFiles(references))
     }
 
     private fun findReferences(declaration: VbId): Collection<PsiReference> {
