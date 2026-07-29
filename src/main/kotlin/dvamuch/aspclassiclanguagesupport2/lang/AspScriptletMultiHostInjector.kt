@@ -14,14 +14,14 @@ class AspScriptletMultiHostInjector : MultiHostInjector {
 
     override fun getLanguagesToInject(registrar: MultiHostRegistrar, context: PsiElement) {
         val contextHost = context as? AspOuterPsiElement ?: return
-        if (scriptletInfo(contextHost) == null) return
+        if (aspScriptletInfo(contextHost) == null) return
         val templatePsi = contextHost.containingFile
 
         var injecting = false
         val traverser = SyntaxTraverser.psiTraverser(templatePsi)
         for (element in traverser) {
             val aspHost = element as? AspOuterPsiElement ?: continue
-            val info = scriptletInfo(aspHost) ?: continue
+            val info = aspScriptletInfo(aspHost) ?: continue
             if (!injecting) {
                 registrar.startInjecting(VbScriptLanguage)
                 injecting = true
@@ -32,25 +32,25 @@ class AspScriptletMultiHostInjector : MultiHostInjector {
             registrar.doneInjecting()
         }
     }
+}
 
-    private data class ScriptletInfo(val range: TextRange, val prefix: String?)
+internal data class AspScriptletInfo(val range: TextRange, val prefix: String?)
 
-    private fun scriptletInfo(host: AspOuterPsiElement): ScriptletInfo? {
-        val text = host.node.chars
-        val length = text.length
-        if (length < 4) return null
-        if (text[0] != '<' || text[1] != '%') return null
-        if (text[length - 2] != '%' || text[length - 1] != '>') return null
+internal fun aspScriptletInfo(host: AspOuterPsiElement): AspScriptletInfo? {
+    val text = host.node.chars
+    val length = text.length
+    if (length < 4) return null
+    if (text[0] != '<' || text[1] != '%') return null
+    if (text[length - 2] != '%' || text[length - 1] != '>') return null
 
-        val third = text[2]
-        if (third == '-' && length > 3 && text[3] == '-') return null
-        if (third == '@') return null
+    val third = text[2]
+    if (third == '-' && length > 3 && text[3] == '-') return null
+    if (third == '@') return null
 
-        val isExpression = third == '='
-        val start = if (isExpression) 3 else 2
-        val end = length - 2
-        if (start >= end) return null
-        val prefix = if (isExpression) "Response.Write " else null
-        return ScriptletInfo(TextRange(start, end), prefix)
-    }
+    val isExpression = third == '='
+    val start = if (isExpression) 3 else 2
+    val end = length - 2
+    if (start >= end) return null
+    val prefix = if (isExpression) "Response.Write " else null
+    return AspScriptletInfo(TextRange(start, end), prefix)
 }

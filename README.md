@@ -17,7 +17,7 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
     - Special highlighting for variables (identifiers) to improve readability.
 - **Multi-Host Injection**: Properly handles multiple scriptlet blocks as a single VBScript context.
 - **Basic HTML Support**: HTML parts of the ASP files are handled by the IDE's built-in HTML support.
-- **Basic Navigation**: "Jump to Definition" for local variables and functions within the same file (experimental).
+- **VBScript Navigation**: "Jump to Definition" for scope-aware local symbols and top-level symbols from direct or nested includes.
 - **Include Navigation**: Resolves `file` and `virtual` paths in `<!-- #include ... -->` directives.
 
 ### Visual Demonstration
@@ -27,11 +27,11 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
 ## Roadmap (Planned Features)
 - [ ] **Performance**: Keep editing and language injection responsive in large legacy files.
 - [x] **Include Navigation**: Resolve `file` and `virtual` paths in `<!-- #include ... -->`.
-- [ ] **Include-aware Symbols**: Use the include graph for cross-file navigation and completion.
+- [x] **Include-aware Symbol Navigation**: Resolve top-level symbols through direct, nested, `file`, and `virtual` includes.
 - [ ] **Formatters**: Basic code formatting for VBScript blocks.
 - [ ] **Editor Essentials**: Commenting, folding, structure view, and block matching.
 - [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
-- [ ] **Go To Definition (Stable)**: Scope-aware local navigation and cross-file navigation through includes.
+- [ ] **Go To Definition (Advanced)**: Add indexed project symbols, class-member resolution, and richer `With` support.
 
 ## Contributing
 
