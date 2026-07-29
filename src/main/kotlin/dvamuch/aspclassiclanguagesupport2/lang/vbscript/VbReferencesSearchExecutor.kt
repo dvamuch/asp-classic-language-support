@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReference
@@ -123,7 +124,19 @@ internal object VbUsageCandidateFiles {
         candidates: List<PsiFile>,
         searchScope: SearchScope
     ): List<PsiFile> {
-        val visibleUrls = mutableSetOf(declarationAspFile.virtualFile.url)
+        val visibleUrls = visibleFiles(declarationAspFile, searchScope)
+            .mapTo(mutableSetOf()) { it.virtualFile.url }
+
+        return candidates.filter { candidate ->
+            candidate.virtualFile.url in visibleUrls
+        }
+    }
+
+    fun visibleFiles(
+        declarationAspFile: PsiFile,
+        searchScope: SearchScope
+    ): List<PsiFile> {
+        val visibleFiles = linkedMapOf(declarationAspFile.virtualFile.url to declarationAspFile)
         val pending = ArrayDeque<PsiFile>()
         pending.add(declarationAspFile)
 
@@ -134,7 +147,7 @@ internal object VbUsageCandidateFiles {
                 ProgressManager.checkCanceled()
                 if (reference is AspIncludeReference) {
                     val consumer = AspIncludeGraph.aspPsi(reference.element.containingFile)
-                    if (consumer != null && visibleUrls.add(consumer.virtualFile.url)) {
+                    if (consumer != null && visibleFiles.putIfAbsent(consumer.virtualFile.url, consumer) == null) {
                         pending.add(consumer)
                     }
                 }
@@ -142,8 +155,30 @@ internal object VbUsageCandidateFiles {
             })
         }
 
-        return candidates.filter { candidate ->
-            candidate.virtualFile.url in visibleUrls
-        }
+        return visibleFiles.values.toList()
+    }
+}
+
+/**
+ * Limit a global usage search to the ASP file that owns the declaration and to files that can see
+ * it through transitive includes. This scope is applied by the Find Usages handler itself, so it
+ * also constrains the platform's built-in reference executors.
+ */
+internal object VbUsageSearchScope {
+    fun forElement(element: PsiElement, userScope: SearchScope): SearchScope {
+        if (userScope !is GlobalSearchScope) return userScope
+
+        val id = element as? VbId ?: return userScope
+        val declaration = VbDeclarationUtil.declaration(id) ?: return userScope
+        if (declaration.scope !is PsiFile) return userScope
+
+        val injectionManager = InjectedLanguageManager.getInstance(element.project)
+        val topLevelFile = injectionManager.getTopLevelFile(element)
+        val declarationAspFile = VbAspPsiUtil.aspPsi(topLevelFile) ?: return userScope
+        val visibleVirtualFiles = VbUsageCandidateFiles
+            .visibleFiles(declarationAspFile, userScope)
+            .map { it.virtualFile }
+        val visibleScope = GlobalSearchScope.filesScope(element.project, visibleVirtualFiles)
+        return userScope.intersectWith(visibleScope)
     }
 }

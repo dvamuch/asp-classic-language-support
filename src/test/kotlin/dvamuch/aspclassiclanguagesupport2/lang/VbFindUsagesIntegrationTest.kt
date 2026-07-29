@@ -14,8 +14,9 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory
-import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageCandidateFiles
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbNoUsagesHintStabilizer
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageCandidateFiles
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageSearchScope
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
 class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
@@ -332,7 +333,7 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
             "site/bugs/BugAdd.asp",
             "<% Dim MM_editCmd %>"
         )
-        repeat(20) { index ->
+        val unrelatedFiles = List(20) { index ->
             myFixture.addFileToProject(
                 "site/bugs/unrelated-$index.asp",
                 "<% Dim MM_editCmd : Set MM_editCmd = Server.CreateObject(\"ADODB.Command\") %>"
@@ -352,6 +353,61 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
 
         assertEquals(21, candidates.size)
         assertEquals(listOf(declarationFile.virtualFile), visibleConsumers.map { it.virtualFile })
+
+        val declaration = idAt(declarationFile, "Dim MM_editCmd", "MM_editCmd")
+        val effectiveScope = VbUsageSearchScope.forElement(
+            declaration,
+            GlobalSearchScope.projectScope(project)
+        )
+
+        assertTrue(effectiveScope.contains(declarationFile.virtualFile))
+        unrelatedFiles.forEach { assertFalse(effectiveScope.contains(it.virtualFile)) }
+
+        val handler = VbFindUsagesHandlerFactory().createFindUsagesHandler(declaration, false)
+        val options = handler.findUsagesOptions.apply {
+            searchScope = GlobalSearchScope.projectScope(project)
+        }
+        val usages = mutableListOf<UsageInfo>()
+        assertTrue(handler.processElementUsages(declaration, Processor {
+            usages.add(it)
+            true
+        }, options))
+        assertEmpty(usages)
+    }
+
+    fun testHandlerScopeContainsDirectAndNestedIncludeConsumers() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/shared/constants.inc",
+            "<% Dim SharedValue %>"
+        )
+        val directConsumer = myFixture.addFileToProject(
+            "site/pages/direct.asp",
+            "<!--#include file=\"../shared/constants.inc\" --><% Response.Write SharedValue %>"
+        )
+        val intermediate = myFixture.addFileToProject(
+            "site/includes/bootstrap.inc",
+            "<!--#include file=\"../shared/constants.inc\" -->"
+        )
+        val nestedConsumer = myFixture.addFileToProject(
+            "site/pages/nested.asp",
+            "<!--#include file=\"../includes/bootstrap.inc\" --><% Response.Write SharedValue %>"
+        )
+        val unrelated = myFixture.addFileToProject(
+            "site/pages/unrelated.asp",
+            "<% Response.Write SharedValue %>"
+        )
+        val declaration = idAt(declarationFile, "Dim SharedValue", "SharedValue")
+
+        val effectiveScope = VbUsageSearchScope.forElement(
+            declaration,
+            GlobalSearchScope.projectScope(project)
+        )
+
+        assertTrue(effectiveScope.contains(declarationFile.virtualFile))
+        assertTrue(effectiveScope.contains(directConsumer.virtualFile))
+        assertTrue(effectiveScope.contains(intermediate.virtualFile))
+        assertTrue(effectiveScope.contains(nestedConsumer.virtualFile))
+        assertFalse(effectiveScope.contains(unrelated.virtualFile))
     }
 
     fun testNoUsagesHintIsStabilizedOnlyForEmptyGotoDeclarationSearch() {

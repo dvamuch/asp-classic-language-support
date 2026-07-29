@@ -5,8 +5,10 @@ import com.intellij.find.findUsages.FindUsagesHandlerFactory
 import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.actionSystem.ex.ActionManagerEx
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
+import com.intellij.psi.search.SearchScope
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
@@ -40,7 +42,12 @@ private class VbFindUsagesHandler(
         val startedAt = System.nanoTime()
         var usageFound = false
         val fastTrack = options.fastTrack
+        val userScope = options.searchScope
+        val effectiveScope = ReadAction.compute<SearchScope, RuntimeException> {
+            VbUsageSearchScope.forElement(element, userScope)
+        }
         options.fastTrack = null
+        options.searchScope = effectiveScope
         val completed = try {
             super.processElementUsages(
                 element,
@@ -54,6 +61,7 @@ private class VbFindUsagesHandler(
             // The platform's fast-track collector constructs UsageInfo directly from injected
             // references after this handler returns, bypassing the host-range conversion above.
             options.fastTrack = fastTrack
+            options.searchScope = userScope
         }
 
         val elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
