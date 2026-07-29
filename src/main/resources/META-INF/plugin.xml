@@ -44,6 +44,7 @@
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeReferenceContributor"/>
         <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspFileFindUsagesHandlerFactory"/>
         <customUsageSearcher implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeCustomUsageSearcher"/>
+        <fileBasedIndex implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeIndex"/>
         <fileType name="ASP" language="ASP"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileType"
                   fieldName="INSTANCE" extensions="asp;inc"/>
