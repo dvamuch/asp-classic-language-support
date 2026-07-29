@@ -9,7 +9,7 @@ import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageCandidateFiles
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
 class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
@@ -68,11 +68,11 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
             """
             <!--#include file="../shared/constants.inc" -->
             <%
-            Response.Write SharedValue
+            Response.Write sharedvalue
             %>
             """.trimIndent()
         )
-        val bootstrap = myFixture.addFileToProject(
+        myFixture.addFileToProject(
             "site/includes/bootstrap.inc",
             """
             <!--#include file="../shared/constants.inc" -->
@@ -83,7 +83,7 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
             """
             <!--#include file="../includes/bootstrap.inc" -->
             <%
-            Response.Write SharedValue
+            Response.Write SHAREDVALUE
             %>
             """.trimIndent()
         )
@@ -97,10 +97,6 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
         )
         val declaration = idAt(declarationFile, "Dim SharedValue", "SharedValue")
 
-        assertEquals(
-            setOf(directConsumer.virtualFile, bootstrap.virtualFile, nestedConsumer.virtualFile),
-            AspIncludeGraph.transitiveConsumers(declarationFile).mapTo(linkedSetOf()) { it.virtualFile }
-        )
         val references = findReferences(declaration)
 
         assertEquals(2, references.size)
@@ -259,6 +255,33 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
 
         assertEquals(1, references.size)
         assertEquals(setOf(consumer.virtualFile), topLevelFiles(references))
+    }
+
+    fun testWordIndexLimitsUnusedSymbolCandidatesToDeclarationFile() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/includes/adovbs.inc",
+            """
+            <%
+            Const adParamUnknown = &H0000
+            %>
+            """.trimIndent()
+        )
+        repeat(20) { index ->
+            myFixture.addFileToProject(
+                "site/pages/unrelated-$index.asp",
+                "<% Response.Write OtherValue$index %>"
+            )
+        }
+        val declaration = idAt(declarationFile, "Const adParamUnknown", "adParamUnknown")
+
+        val candidates = VbUsageCandidateFiles.find(
+            project,
+            "adParamUnknown",
+            GlobalSearchScope.projectScope(project)
+        )
+
+        assertEquals(setOf(declarationFile.virtualFile), candidates.mapTo(linkedSetOf()) { it.virtualFile })
+        assertEmpty(findReferences(declaration))
     }
 
     private fun findReferences(declaration: VbId): Collection<PsiReference> {
