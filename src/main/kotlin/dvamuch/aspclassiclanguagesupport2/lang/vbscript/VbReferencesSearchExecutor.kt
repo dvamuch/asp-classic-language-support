@@ -2,14 +2,23 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiReference
+import com.intellij.psi.search.FileTypeIndex
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.LocalSearchScope
+import com.intellij.psi.search.PsiSearchHelper
+import com.intellij.psi.search.SearchScope
+import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.Processor
 import com.intellij.util.QueryExecutor
-import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
+import dvamuch.aspclassiclanguagesupport2.lang.AspFileType
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbAspPsiUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
@@ -36,11 +45,15 @@ class VbReferencesSearchExecutor : QueryExecutor<PsiReference, ReferencesSearch.
         val declarationAspFile = VbAspPsiUtil.aspPsi(declarationTopLevelFile) ?: return true
         val declarationLocation = VbAspPsiUtil.hostLocation(declarationId) ?: return true
         val name = (declarationId as? VbNamedElement)?.name ?: return true
-        val searchScope = queryParameters.scopeDeterminedByUser
+        val candidateFiles = VbUsageCandidateFiles.find(
+            declarationId.project,
+            name,
+            queryParameters.scopeDeterminedByUser
+        )
 
-        for (consumerAspFile in AspIncludeGraph.transitiveConsumers(declarationAspFile)) {
+        for (consumerAspFile in candidateFiles) {
             ProgressManager.checkCanceled()
-            if (!searchScope.contains(consumerAspFile.virtualFile)) continue
+            if (consumerAspFile.virtualFile == declarationAspFile.virtualFile) continue
             val vbFile = VbAspPsiUtil.injectedVbScriptFile(consumerAspFile) ?: continue
             val candidateIds = PsiTreeUtil.collectElementsOfType(vbFile, VbId::class.java)
             for (candidateId in candidateIds) {
@@ -53,5 +66,48 @@ class VbReferencesSearchExecutor : QueryExecutor<PsiReference, ReferencesSearch.
             }
         }
         return true
+    }
+}
+
+internal object VbUsageCandidateFiles {
+    fun find(project: Project, name: String, searchScope: SearchScope): List<PsiFile> {
+        val virtualFiles = linkedSetOf<VirtualFile>()
+        val injectionManager = InjectedLanguageManager.getInstance(project)
+        val psiManager = PsiManager.getInstance(project)
+        val searchHelper = PsiSearchHelper.getInstance(project)
+
+        when (searchScope) {
+            is GlobalSearchScope -> searchHelper.processCandidateFilesForText(
+                searchScope,
+                UsageSearchContext.ANY,
+                false,
+                name
+            ) { virtualFile ->
+                ProgressManager.checkCanceled()
+                if (virtualFile.fileType == AspFileType) virtualFiles.add(virtualFile)
+                true
+            }
+
+            is LocalSearchScope -> searchScope.scope.forEach { element ->
+                ProgressManager.checkCanceled()
+                val virtualFile = injectionManager.getTopLevelFile(element).virtualFile
+                if (virtualFile != null && virtualFile.fileType == AspFileType) {
+                    virtualFiles.add(virtualFile)
+                }
+            }
+
+            else -> FileTypeIndex.getFiles(AspFileType, GlobalSearchScope.projectScope(project))
+                .asSequence()
+                .filter(searchScope::contains)
+                .filter { virtualFile ->
+                    ProgressManager.checkCanceled()
+                    psiManager.findFile(virtualFile)?.let { searchHelper.hasIdentifierInFile(it, name) } == true
+                }
+                .forEach(virtualFiles::add)
+        }
+
+        return virtualFiles
+            .mapNotNull(psiManager::findFile)
+            .mapNotNull(VbAspPsiUtil::aspPsi)
     }
 }
