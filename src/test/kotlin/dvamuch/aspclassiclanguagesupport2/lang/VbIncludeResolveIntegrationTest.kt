@@ -92,6 +92,31 @@ class VbIncludeResolveIntegrationTest : BasePlatformTestCase() {
         assertUsageResolvesTo(source, "RenderNavigation()", target, "RenderNavigation")
     }
 
+    fun testResolvesConstantAfterLowercaseHexConstantsInInclude() {
+        val target = myFixture.addFileToProject(
+            "site/core/adovbs.inc",
+            """
+            <%
+            Const adInteger = 3
+            Const adModeShareExclusive = &Hc
+            Const adErrPropNotAllSettable = &He9f
+            Const adParamInput = &H0001
+            %>
+            """.trimIndent()
+        )
+        val source = myFixture.addFileToProject(
+            "site/pages/index.asp",
+            """
+            <!--#include file="../core/adovbs.inc" -->
+            <%
+            command.CreateParameter "value", adInteger, adParamInput
+            %>
+            """.trimIndent()
+        )
+
+        assertUsageResolvesTo(source, "adParamInput", target, "adParamInput")
+    }
+
     fun testIncludeCycleDoesNotPreventResolve() {
         myFixture.addFileToProject(
             "site/includes/a.inc",
