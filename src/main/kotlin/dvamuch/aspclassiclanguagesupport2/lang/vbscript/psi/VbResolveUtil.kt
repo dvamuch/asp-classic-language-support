@@ -118,12 +118,11 @@ object VbResolveUtil {
     }
 
     private fun isImplicitAssignmentDeclaration(id: VbId): Boolean {
-        val qualified = id.parent as? VbQualifiedIdentifier ?: return false
-        val lvalue = qualified.parent as? VbLvalue ?: return false
+        val reference = id.parent as? VbPostfixRefExpr ?: return false
+        val lvalue = reference.parent as? VbLvalue ?: return false
         val assignment = lvalue.parent as? VbAssignmentStmt ?: return false
 
-        val ids = qualified.idList
-        if (ids.size != 1 || ids[0] != id) return false
+        if (reference.id != id || reference.postfixSuffixList.isNotEmpty()) return false
 
         // Treat bare assignments (including SET/LET) as implicit declarations.
         return assignment.textOffset <= id.textOffset

@@ -112,14 +112,18 @@ class VbResolveIntegrationTest : BasePlatformTestCase() {
 
             Dim MM_editAction
             Dim MM_abortEdit
+            Dim MM_editRedirectUrl
+            Dim MM_fields
+            Dim MM_i
 
             MM_editAction = CStr(Request.ServerVariables("SCRIPT_NAME"))
-            If (Request.QueryString <> "") Then
-              MM_editAction = MM_editAction & "?" & Request.QueryString
+            MM_fields(MM_i+1) = CStr(Request.Form(MM_fields(MM_i)))
+            If (MM_editRedirectUrl <> "" And Request.QueryString <> "") Then
+              MM_editRedirectUrl = MM_editRedirectUrl & "?" & Request.QueryString
             End If
             %>
         """.trimIndent()
-        val target = "MM_editAction = CStr(Request.ServerVariables(\"SCRIPT_NAME\"))"
+        val target = "MM_editRedirectUrl <> \"\""
         val tempDirectory = Files.createTempDirectory("asp-classic-navigation-")
         VfsRootAccess.allowRootAccess(
             testRootDisposable,
@@ -142,7 +146,7 @@ class VbResolveIntegrationTest : BasePlatformTestCase() {
             val lineEnd = myFixture.editor.document.getLineEndOffset(lineNumber)
             assertEquals(
                 "Go to Declaration should move the editor caret to the Dim statement",
-                "Dim MM_editAction",
+                "Dim MM_editRedirectUrl",
                 myFixture.editor.document.getText(com.intellij.openapi.util.TextRange(lineStart, lineEnd)).trim()
             )
         } finally {

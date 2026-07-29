@@ -95,7 +95,7 @@ erase_stmt ::= ERASE id (COMMA id)*
 execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
 
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
-lvalue ::= qualified_identifier
+lvalue ::= postfix_ref_expr
 
 call_stmt ::= CALL? qualified_identifier (call_args | bare_call_args)?
 call_args ::= LPAREN call_arg_list? RPAREN

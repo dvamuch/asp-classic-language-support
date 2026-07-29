@@ -48,6 +48,18 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
         )
     }
 
+    fun testParsesIndexedAssignmentTarget() {
+        assertParses(
+            """
+            Dim MM_fields
+            Dim MM_i
+
+            MM_fields(MM_i+1) = CStr(Request.Form(MM_fields(MM_i)))
+            MM_typeArray = Split(MM_columns(MM_i+1), ",")
+            """.trimIndent()
+        )
+    }
+
     fun testParsesSingleLineIfWithEndIf() {
         assertParses(
             """
