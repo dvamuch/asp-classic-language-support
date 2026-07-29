@@ -80,6 +80,22 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
         )
     }
 
+    fun testParsesLeadingDotMembersInsideWithBlock() {
+        assertParses(
+            """
+            With cdoConfig.Fields
+                .Item("smtpserver") = Application("SMTP")
+                .Update
+            End With
+
+            With myCDONTSMail
+                .BodyPart.CharSet = "utf-8"
+                .Send()
+            End With
+            """.trimIndent()
+        )
+    }
+
     fun testParsesIfBlockCollapsedByAspHtmlGap() {
         assertParses(
             """

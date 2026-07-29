@@ -38,6 +38,7 @@ object VbResolveUtil {
 
         val parent = id.parent
         if (parent is VbPostfixSuffix) return false
+        if (parent is VbWithMemberRefExpr || parent is VbWithQualifiedIdentifier) return false
         if (parent is VbQualifiedIdentifier && parent.idList.firstOrNull() != id) return false
         return true
     }

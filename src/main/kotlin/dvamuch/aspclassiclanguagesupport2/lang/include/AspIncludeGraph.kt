@@ -41,10 +41,9 @@ internal object AspIncludeGraph {
                 ProgressManager.checkCanceled()
                 val consumer = psiManager.findFile(candidateFile)?.let(::aspPsi) ?: continue
                 val includesTarget = directIncludes(consumer).any {
-                    it.virtualFile == includedFile.virtualFile
+                    it.virtualFile.url == includedFile.virtualFile.url
                 }
                 if (!includesTarget) continue
-
                 val consumerUrl = consumer.virtualFile.url
                 if (visited.add(consumerUrl)) {
                     consumers[consumerUrl] = consumer
