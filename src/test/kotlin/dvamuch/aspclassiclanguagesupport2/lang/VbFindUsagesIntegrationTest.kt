@@ -9,6 +9,9 @@ import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.usageView.UsageInfo
+import com.intellij.util.Processor
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageCandidateFiles
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbNoUsagesHintStabilizer
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
@@ -285,6 +288,29 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
         assertEmpty(findReferences(declaration))
     }
 
+    fun testIncludeGraphFiltersSameNamedSymbolsFromUnrelatedPages() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/bugs/BugAdd.asp",
+            "<% Dim MM_editCmd %>"
+        )
+        repeat(20) { index ->
+            myFixture.addFileToProject(
+                "site/bugs/unrelated-$index.asp",
+                "<% Dim MM_editCmd : Set MM_editCmd = Server.CreateObject(\"ADODB.Command\") %>"
+            )
+        }
+        val candidates = VbUsageCandidateFiles.find(
+            project,
+            "MM_editCmd",
+            GlobalSearchScope.projectScope(project)
+        )
+
+        val visibleConsumers = VbUsageCandidateFiles.visibleConsumers(declarationFile, candidates)
+
+        assertEquals(21, candidates.size)
+        assertEquals(listOf(declarationFile.virtualFile), visibleConsumers.map { it.virtualFile })
+    }
+
     fun testNoUsagesHintIsStabilizedOnlyForEmptyGotoDeclarationSearch() {
         assertEquals(
             350,
@@ -322,6 +348,38 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
                 completed = false
             )
         )
+    }
+
+    fun testFindUsagesHandlerReturnsStableHostFileRanges() {
+        val file = myFixture.addFileToProject(
+            "site/page.asp",
+            """
+            <%
+            Dim total
+            total = 10
+            Response.Write total
+            %>
+            """.trimIndent()
+        )
+        val declaration = idAt(file, "Dim total", "total")
+        val handler = VbFindUsagesHandlerFactory().createFindUsagesHandler(declaration, false)
+        val options = handler.findUsagesOptions.apply {
+            searchScope = GlobalSearchScope.projectScope(project)
+        }
+        val usages = mutableListOf<UsageInfo>()
+
+        assertTrue(handler.processElementUsages(declaration, Processor {
+            usages.add(it)
+            true
+        }, options))
+
+        assertEquals(2, usages.size)
+        usages.forEach { usage ->
+            assertSame(file, usage.element)
+            assertSame(file, usage.file)
+            assertEquals(file.virtualFile, usage.virtualFile)
+            assertEquals("total", usage.segment?.let { file.text.substring(it.startOffset, it.endOffset) })
+        }
     }
 
     private fun findReferences(declaration: VbId): Collection<PsiReference> {
