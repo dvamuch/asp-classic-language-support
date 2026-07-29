@@ -1,10 +1,14 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import java.nio.file.Files
 
 class VbResolveIntegrationTest : BasePlatformTestCase() {
     fun testIdeFindsReferenceAtCaretInsideAspScriptlet() {
@@ -70,6 +74,81 @@ class VbResolveIntegrationTest : BasePlatformTestCase() {
         )
 
         assertResolvesCaretReferenceTo("total")
+    }
+
+    fun testDreamweaverEditActionAssignmentResolvesToDimDeclaration() {
+        myFixture.configureByText(
+            AspFileType,
+            """
+            <%@LANGUAGE="VBSCRIPT" CODEPAGE="65001"%>
+            <!--#include file="../Connections/connection.asp" -->
+            <!--#include file="../inc/sendmailwithlog.asp" -->
+            <!--#include file="../core/adovbs.inc" -->
+            <%
+            ' *** Edit Operations: declare variables
+
+            Dim MM_editAction
+            Dim MM_abortEdit
+            Dim MM_editQuery
+            Dim MM_editCmd
+
+            MM_editAction = CStr(Request.ServerVariables("SCRIPT_NAME"))
+            If (Request.QueryString <> "") Then
+              <caret>MM_editAction = MM_editAction & "?" & Request.QueryString
+            End If
+            %>
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("MM_editAction")
+    }
+
+    fun testGoToDeclarationWorksInPhysicalAspFile() {
+        val source = """
+            <%@LANGUAGE="VBSCRIPT" CODEPAGE="65001"%>
+            <!--#include file="connection.asp" -->
+            <%
+            ' *** Edit Operations: declare variables
+
+            Dim MM_editAction
+            Dim MM_abortEdit
+
+            MM_editAction = CStr(Request.ServerVariables("SCRIPT_NAME"))
+            If (Request.QueryString <> "") Then
+              MM_editAction = MM_editAction & "?" & Request.QueryString
+            End If
+            %>
+        """.trimIndent()
+        val target = "MM_editAction = CStr(Request.ServerVariables(\"SCRIPT_NAME\"))"
+        val tempDirectory = Files.createTempDirectory("asp-classic-navigation-")
+        VfsRootAccess.allowRootAccess(
+            testRootDisposable,
+            tempDirectory.toString(),
+            tempDirectory.toRealPath().toString()
+        )
+        val path = tempDirectory.resolve("BugAdd.asp")
+        Files.writeString(path, source)
+
+        try {
+            val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByPath(path.toString())
+            assertNotNull("Temporary BugAdd.asp should exist", virtualFile)
+            assertEquals("BugAdd.asp should use the plugin ASP file type", AspFileType, virtualFile!!.fileType)
+            myFixture.configureFromExistingVirtualFile(virtualFile)
+            myFixture.editor.caretModel.moveToOffset(source.indexOf(target))
+
+            myFixture.performEditorAction(IdeActions.ACTION_GOTO_DECLARATION)
+            val lineNumber = myFixture.editor.document.getLineNumber(myFixture.caretOffset)
+            val lineStart = myFixture.editor.document.getLineStartOffset(lineNumber)
+            val lineEnd = myFixture.editor.document.getLineEndOffset(lineNumber)
+            assertEquals(
+                "Go to Declaration should move the editor caret to the Dim statement",
+                "Dim MM_editAction",
+                myFixture.editor.document.getText(com.intellij.openapi.util.TextRange(lineStart, lineEnd)).trim()
+            )
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(tempDirectory)
+        }
     }
 
     fun testFunctionResultAssignmentResolvesToFunctionDeclaration() {
