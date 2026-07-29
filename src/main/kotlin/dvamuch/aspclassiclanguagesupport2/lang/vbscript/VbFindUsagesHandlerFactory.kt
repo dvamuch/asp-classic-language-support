@@ -39,14 +39,22 @@ private class VbFindUsagesHandler(
     ): Boolean {
         val startedAt = System.nanoTime()
         var usageFound = false
-        val completed = super.processElementUsages(
-            element,
-            Processor { usage ->
-                usageFound = true
-                processor.process(VbHostUsageInfo.from(usage))
-            },
-            options
-        )
+        val fastTrack = options.fastTrack
+        options.fastTrack = null
+        val completed = try {
+            super.processElementUsages(
+                element,
+                Processor { usage ->
+                    usageFound = true
+                    processor.process(VbHostUsageInfo.from(usage))
+                },
+                options
+            )
+        } finally {
+            // The platform's fast-track collector constructs UsageInfo directly from injected
+            // references after this handler returns, bypassing the host-range conversion above.
+            options.fastTrack = fastTrack
+        }
 
         val elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
         val delayMillis = VbNoUsagesHintStabilizer.remainingDelayMillis(

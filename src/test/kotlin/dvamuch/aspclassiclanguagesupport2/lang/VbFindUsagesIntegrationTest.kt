@@ -1,7 +1,9 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.find.findUsages.FindUsagesManager
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
@@ -17,6 +19,43 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbNoUsagesHintStabilizer
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
 class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
+    fun testFindUsagesActionShowsStableMmEditCmdUsages() {
+        val file = myFixture.addFileToProject(
+            "site/Bugs/BugAdd.asp",
+            """
+            <%
+            Dim MM_editCmd
+
+            Set MM_editCmd = Server.CreateObject("ADODB.Command")
+            MM_editCmd.ActiveConnection = MM_editConnection
+            MM_editCmd.CommandText = MM_editQuery
+            MM_editCmd.Parameters.Append(MM_editCmd.CreateParameter("complexity", adInteger))
+            Set rs = MM_editCmd.Execute
+            MM_editCmd.ActiveConnection.Close
+            %>
+            """.trimIndent()
+        )
+        val declaration = idAt(file, "Dim MM_editCmd", "MM_editCmd")
+
+        assertEquals(7, findReferences(declaration).size)
+
+        val handler = VbFindUsagesHandlerFactory().createFindUsagesHandler(declaration, false)
+        val options = handler.findUsagesOptions.apply {
+            searchScope = GlobalSearchScope.projectScope(project)
+        }
+        val usages = mutableListOf<UsageInfo>()
+        assertTrue(handler.processElementUsages(declaration, Processor {
+            usages.add(it)
+            true
+        }, options))
+        assertEquals(7, usages.size)
+
+        myFixture.configureFromExistingVirtualFile(file.virtualFile)
+        myFixture.editor.caretModel.moveToOffset(file.text.indexOf("Dim MM_editCmd") + 4)
+        myFixture.performEditorAction(IdeActions.ACTION_FIND_USAGES)
+        FindUsagesManager.waitForAsyncTaskCompletion(project)
+    }
+
     fun testFindsLocalVariableUsagesInSameFile() {
         val file = myFixture.addFileToProject(
             "site/page.asp",
@@ -305,7 +344,11 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
             GlobalSearchScope.projectScope(project)
         )
 
-        val visibleConsumers = VbUsageCandidateFiles.visibleConsumers(declarationFile, candidates)
+        val visibleConsumers = VbUsageCandidateFiles.visibleConsumers(
+            declarationFile,
+            candidates,
+            GlobalSearchScope.projectScope(project)
+        )
 
         assertEquals(21, candidates.size)
         assertEquals(listOf(declarationFile.virtualFile), visibleConsumers.map { it.virtualFile })

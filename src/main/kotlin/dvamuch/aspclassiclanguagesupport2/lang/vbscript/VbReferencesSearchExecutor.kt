@@ -20,6 +20,7 @@ import com.intellij.util.Processor
 import com.intellij.util.QueryExecutor
 import dvamuch.aspclassiclanguagesupport2.lang.AspFileType
 import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
+import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeReference
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbAspPsiUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
@@ -54,7 +55,8 @@ class VbReferencesSearchExecutor : QueryExecutor<PsiReference, ReferencesSearch.
 
         val visibleConsumerFiles = VbUsageCandidateFiles.visibleConsumers(
             declarationAspFile,
-            candidateFiles
+            candidateFiles,
+            queryParameters.scopeDeterminedByUser
         )
         for (consumerAspFile in visibleConsumerFiles) {
             ProgressManager.checkCanceled()
@@ -116,27 +118,32 @@ internal object VbUsageCandidateFiles {
             .mapNotNull(VbAspPsiUtil::aspPsi)
     }
 
-    fun visibleConsumers(declarationAspFile: PsiFile, candidates: List<PsiFile>): List<PsiFile> {
-        val declarationUrl = declarationAspFile.virtualFile.url
-        val knownConsumers = mutableSetOf<String>()
+    fun visibleConsumers(
+        declarationAspFile: PsiFile,
+        candidates: List<PsiFile>,
+        searchScope: SearchScope
+    ): List<PsiFile> {
+        val visibleUrls = mutableSetOf(declarationAspFile.virtualFile.url)
+        val pending = ArrayDeque<PsiFile>()
+        pending.add(declarationAspFile)
 
-        fun includesDeclaration(aspFile: PsiFile, visiting: MutableSet<String>): Boolean {
+        while (pending.isNotEmpty()) {
             ProgressManager.checkCanceled()
-            val fileUrl = aspFile.virtualFile.url
-            if (fileUrl == declarationUrl) return true
-            if (fileUrl in knownConsumers) return true
-            if (!visiting.add(fileUrl)) return false
-
-            val result = AspIncludeGraph.directIncludes(aspFile).any { includedFile ->
-                includesDeclaration(includedFile, visiting)
-            }
-            visiting.remove(fileUrl)
-            if (result) knownConsumers.add(fileUrl)
-            return result
+            val includedFile = pending.removeFirst()
+            ReferencesSearch.search(includedFile, searchScope, false).forEach(Processor { reference ->
+                ProgressManager.checkCanceled()
+                if (reference is AspIncludeReference) {
+                    val consumer = AspIncludeGraph.aspPsi(reference.element.containingFile)
+                    if (consumer != null && visibleUrls.add(consumer.virtualFile.url)) {
+                        pending.add(consumer)
+                    }
+                }
+                true
+            })
         }
 
         return candidates.filter { candidate ->
-            includesDeclaration(candidate, mutableSetOf())
+            candidate.virtualFile.url in visibleUrls
         }
     }
 }
