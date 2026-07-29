@@ -43,7 +43,7 @@ private class VbFindUsagesHandler(
             element,
             Processor { usage ->
                 usageFound = true
-                processor.process(usage)
+                processor.process(VbHostUsageInfo.from(usage))
             },
             options
         )

@@ -19,6 +19,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.Processor
 import com.intellij.util.QueryExecutor
 import dvamuch.aspclassiclanguagesupport2.lang.AspFileType
+import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbAspPsiUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
@@ -51,7 +52,11 @@ class VbReferencesSearchExecutor : QueryExecutor<PsiReference, ReferencesSearch.
             queryParameters.scopeDeterminedByUser
         )
 
-        for (consumerAspFile in candidateFiles) {
+        val visibleConsumerFiles = VbUsageCandidateFiles.visibleConsumers(
+            declarationAspFile,
+            candidateFiles
+        )
+        for (consumerAspFile in visibleConsumerFiles) {
             ProgressManager.checkCanceled()
             if (consumerAspFile.virtualFile == declarationAspFile.virtualFile) continue
             val vbFile = VbAspPsiUtil.injectedVbScriptFile(consumerAspFile) ?: continue
@@ -109,5 +114,29 @@ internal object VbUsageCandidateFiles {
         return virtualFiles
             .mapNotNull(psiManager::findFile)
             .mapNotNull(VbAspPsiUtil::aspPsi)
+    }
+
+    fun visibleConsumers(declarationAspFile: PsiFile, candidates: List<PsiFile>): List<PsiFile> {
+        val declarationUrl = declarationAspFile.virtualFile.url
+        val knownConsumers = mutableSetOf<String>()
+
+        fun includesDeclaration(aspFile: PsiFile, visiting: MutableSet<String>): Boolean {
+            ProgressManager.checkCanceled()
+            val fileUrl = aspFile.virtualFile.url
+            if (fileUrl == declarationUrl) return true
+            if (fileUrl in knownConsumers) return true
+            if (!visiting.add(fileUrl)) return false
+
+            val result = AspIncludeGraph.directIncludes(aspFile).any { includedFile ->
+                includesDeclaration(includedFile, visiting)
+            }
+            visiting.remove(fileUrl)
+            if (result) knownConsumers.add(fileUrl)
+            return result
+        }
+
+        return candidates.filter { candidate ->
+            includesDeclaration(candidate, mutableSetOf())
+        }
     }
 }
