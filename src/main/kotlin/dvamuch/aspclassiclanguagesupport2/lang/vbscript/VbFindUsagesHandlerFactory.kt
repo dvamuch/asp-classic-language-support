@@ -4,6 +4,7 @@ import com.intellij.find.findUsages.FindUsagesHandler
 import com.intellij.find.findUsages.FindUsagesHandlerFactory
 import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.usageView.UsageInfo
@@ -29,6 +30,7 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
         processor: Processor<in UsageInfo>,
         options: FindUsagesOptions
     ): Boolean {
+        val declarationId = element as? VbId ?: return false
         val userScope = options.searchScope
         val fastTrack = options.fastTrack
         val localScope = ReadAction.compute<LocalSearchScope, RuntimeException> {
@@ -36,7 +38,7 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
         }
         options.searchScope = localScope
         options.fastTrack = null
-        return try {
+        val localCompleted = try {
             super.processElementUsages(
                 element,
                 Processor { usage -> processor.process(VbHostUsageInfo.from(usage)) },
@@ -46,5 +48,12 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
             options.searchScope = userScope
             options.fastTrack = fastTrack
         }
+        if (!localCompleted) return false
+
+        for (usage in VbIncludeUsageSearcher.find(declarationId, userScope)) {
+            ProgressManager.checkCanceled()
+            if (!processor.process(usage)) return false
+        }
+        return true
     }
 }

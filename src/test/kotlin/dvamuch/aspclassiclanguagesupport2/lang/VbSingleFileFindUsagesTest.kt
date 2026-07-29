@@ -4,10 +4,13 @@ import com.intellij.find.findUsages.FindUsagesManager
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.psi.PsiFile
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.usageView.UsageInfo
+import com.intellij.util.Processor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
@@ -24,11 +27,29 @@ class VbSingleFileFindUsagesTest : BasePlatformTestCase() {
             %>
             """.trimIndent()
         )
+        repeat(50) { index ->
+            myFixture.addFileToProject(
+                "site/Bugs/unrelated-$index.asp",
+                "<% Dim MM_editCmd : MM_editCmd = $index %>"
+            )
+        }
         val declaration = idAt(file, "Dim MM_editCmd", "MM_editCmd")
         val factory = VbFindUsagesHandlerFactory()
 
         assertTrue(factory.canFindUsages(declaration))
         assertEquals(3, ReferencesSearch.search(declaration, LocalSearchScope(declaration.containingFile)).findAll().size)
+
+        val handler = factory.createFindUsagesHandler(declaration, false)
+        val options = handler.findUsagesOptions.apply {
+            searchScope = GlobalSearchScope.projectScope(project)
+        }
+        val usages = mutableListOf<UsageInfo>()
+        assertTrue(handler.processElementUsages(declaration, Processor {
+            usages.add(it)
+            true
+        }, options))
+        assertEquals(3, usages.size)
+        usages.forEach { usage -> assertEquals(file.virtualFile, usage.virtualFile) }
 
         myFixture.configureFromExistingVirtualFile(file.virtualFile)
         myFixture.editor.caretModel.moveToOffset(file.text.indexOf("Dim MM_editCmd") + 4)

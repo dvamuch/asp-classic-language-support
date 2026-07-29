@@ -21,9 +21,20 @@ object AspIncludeDirectiveParser {
 
     fun parse(commentText: String): AspIncludeDirective? {
         val match = includePattern.matchEntire(commentText) ?: return null
-        val pathGroup = match.groups[2] ?: match.groups[3] ?: return null
+        return directive(match)
+    }
+
+    internal fun findAll(fileText: CharSequence): List<AspIncludeDirective> {
+        return includePattern.findAll(fileText)
+            .map(::directive)
+            .toList()
+    }
+
+    private fun directive(match: MatchResult): AspIncludeDirective {
+        val pathGroup = match.groups[2] ?: match.groups[3]
+            ?: error("Include directive path group is missing")
         val path = pathGroup.value.trim()
-        if (path.isEmpty()) return null
+        check(path.isNotEmpty())
 
         val leadingWhitespace = pathGroup.value.indexOfFirst { !it.isWhitespace() }
         val pathStart = pathGroup.range.first + leadingWhitespace.coerceAtLeast(0)
