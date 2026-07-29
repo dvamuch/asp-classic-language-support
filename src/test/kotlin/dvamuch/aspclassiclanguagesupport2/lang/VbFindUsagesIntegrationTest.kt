@@ -10,6 +10,7 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUsageCandidateFiles
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbNoUsagesHintStabilizer
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
 class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
@@ -282,6 +283,45 @@ class VbFindUsagesIntegrationTest : BasePlatformTestCase() {
 
         assertEquals(setOf(declarationFile.virtualFile), candidates.mapTo(linkedSetOf()) { it.virtualFile })
         assertEmpty(findReferences(declaration))
+    }
+
+    fun testNoUsagesHintIsStabilizedOnlyForEmptyGotoDeclarationSearch() {
+        assertEquals(
+            350,
+            VbNoUsagesHintStabilizer.remainingDelayMillis(
+                elapsedMillis = 50,
+                invokedFromGotoDeclaration = true,
+                usageFound = false,
+                completed = true
+            )
+        )
+        assertEquals(
+            0,
+            VbNoUsagesHintStabilizer.remainingDelayMillis(
+                elapsedMillis = 50,
+                invokedFromGotoDeclaration = false,
+                usageFound = false,
+                completed = true
+            )
+        )
+        assertEquals(
+            0,
+            VbNoUsagesHintStabilizer.remainingDelayMillis(
+                elapsedMillis = 50,
+                invokedFromGotoDeclaration = true,
+                usageFound = true,
+                completed = true
+            )
+        )
+        assertEquals(
+            0,
+            VbNoUsagesHintStabilizer.remainingDelayMillis(
+                elapsedMillis = 50,
+                invokedFromGotoDeclaration = true,
+                usageFound = false,
+                completed = false
+            )
+        )
     }
 
     private fun findReferences(declaration: VbId): Collection<PsiReference> {
