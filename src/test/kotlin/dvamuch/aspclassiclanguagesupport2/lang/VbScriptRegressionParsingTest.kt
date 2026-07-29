@@ -60,6 +60,17 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
         )
     }
 
+    fun testParsesLowercaseHexDigitsWithoutLosingFollowingConstants() {
+        assertParses(
+            """
+            Const adInteger = 3
+            Const adModeShareExclusive = &Hc
+            Const adErrPropNotAllSettable = &He9f
+            Const adParamInput = &H0001
+            """.trimIndent()
+        )
+    }
+
     fun testParsesSingleLineIfWithEndIf() {
         assertParses(
             """
