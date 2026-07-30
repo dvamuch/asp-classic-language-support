@@ -1,6 +1,7 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.codeInsight.highlighting.HeavyBraceHighlighter
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
@@ -100,6 +101,39 @@ class VbKeywordMatcherIntegrationTest : BasePlatformTestCase() {
 
         assertPairAt(file, file.text.indexOf("If showDetails"), "If", "End If")
         assertPairAt(file, file.text.indexOf("End If"), "If", "End If")
+    }
+
+    fun testConvertsHostCaretOffsetForInjectedVbScript() {
+        val file = myFixture.configureByText(
+            AspFileType,
+            """
+            <%
+            Dim firstValue
+            Dim secondValue
+            Dim MM_columnsStr
+            %>
+            <main>HTML makes host and injected offsets differ</main>
+            <%
+            If showDetails Then
+                RenderDetails
+            End If
+            %>
+            """.trimIndent()
+        )
+        val manager = InjectedLanguageManager.getInstance(project)
+        val dimHostOffset = file.text.indexOf("Dim MM_columnsStr")
+        val ifHostOffset = file.text.indexOf("If showDetails")
+        val injectedFile = manager.findInjectedElementAt(file, dimHostOffset)!!.containingFile
+
+        assertNull(
+            "A host offset on Dim must not accidentally match a later injected If",
+            HeavyBraceHighlighter.match(injectedFile, dimHostOffset)
+        )
+
+        val pair = HeavyBraceHighlighter.match(injectedFile, ifHostOffset)
+        assertNotNull("Host offset on If should resolve inside injected VBScript", pair)
+        assertEquals("If", pair!!.first.substring(injectedFile.text))
+        assertEquals("End If", pair.second.substring(injectedFile.text))
     }
 
     private fun assertPairAt(file: PsiFile, offset: Int, expectedOpening: String, expectedClosing: String) {
