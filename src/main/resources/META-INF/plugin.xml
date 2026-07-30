@@ -37,6 +37,10 @@
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptParserDefinition"/>
         <lang.syntaxHighlighterFactory language="VBScript"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
+        <lang.commenter language="VBScript"
+                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCommenter"/>
+        <lang.foldingBuilder language="VBScript"
+                             implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFoldingBuilder"/>
         <completion.contributor language="VBScript"
                                 implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbCompletionContributor"/>
         <codeInsight.parameterInfo language="VBScript"
@@ -60,6 +64,8 @@
                                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspEditorHighlighterProvider"/>
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
+        <lang.foldingBuilder language="ASP"
+                             implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFoldingBuilder"/>
         <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
     </extensions>
 </idea-plugin>
