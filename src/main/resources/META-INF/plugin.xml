@@ -63,6 +63,8 @@
                   fieldName="INSTANCE" extensions="asp;inc"/>
         <lang.parserDefinition language="ASP"
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspParserDefinition"/>
+        <lang.formatter language="ASP"
+                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFormattingModelBuilder"/>
         <lang.fileViewProviderFactory language="ASP"
                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileViewProviderFactory"/>
         <editorHighlighterProvider filetype="ASP"
@@ -74,5 +76,7 @@
         <lang.psiStructureViewFactory language="ASP"
                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspStructureViewFactory"/>
         <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
+        <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPostFormatProcessor"
+                             order="last"/>
     </extensions>
 </idea-plugin>
