@@ -14,11 +14,18 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbResolveUtil
 import java.util.Locale
 
 internal object VbObjectTypeResolver {
-    fun resolve(variableName: String, place: PsiElement): VbObjectType? {
+    fun resolve(memberPath: List<String>, place: PsiElement): VbObjectType? {
+        val rootName = memberPath.firstOrNull() ?: return null
         val file = place.containingFile ?: return null
         val scopes = VbResolveUtil.visibleScopes(place)
         val index = VbAssignmentIndex.get(file)
-        return Resolver(file, scopes, index).resolveVariable(variableName, place.textOffset, mutableSetOf())
+        val resolver = Resolver(file, scopes, index)
+        var objectType = resolver.resolveVariable(rootName, place.textOffset, mutableSetOf()) ?: return null
+        for (memberName in memberPath.drop(1)) {
+            val returnType = objectType.member(memberName)?.returnType ?: return null
+            objectType = VbComTypeCatalog.byId(returnType) ?: return null
+        }
+        return objectType
     }
 
     private class Resolver(

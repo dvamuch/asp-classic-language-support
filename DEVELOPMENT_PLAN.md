@@ -273,6 +273,9 @@ End If
     `Set stream = fso.OpenTextFile(...)`;
 - кэшируемый scope-aware индекс простых присваиваний, учитывающий последнее
   присваивание перед местом completion;
+- последовательный вывод типа для цепочек документированных членов, например
+  `cmd.Parameters.Append`, `rs.Fields.Item(0).Value` и
+  `document.documentElement.selectSingleNode`;
 - ограниченный каталог популярных объектов с официальной документацией:
   - ADO: `Connection`, `Command`, `Recordset`, `Stream`, `Parameter`, `Field`
     и основные коллекции;
@@ -285,8 +288,8 @@ End If
 
 Осталось:
 
-- распространение типа через более длинные цепочки и default members, например
-  `rs.Fields("Name").Value`;
+- поддержка default members в сокращённых цепочках, например
+  `rs.Fields("Name").Value` без явного `.Item`;
 - type inference для объектов, присвоенных в include-файле и используемых в
   подключающем ASP-файле;
 - типизированный member completion для пользовательских классов и объектов;

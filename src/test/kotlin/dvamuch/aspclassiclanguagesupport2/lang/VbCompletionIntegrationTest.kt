@@ -163,6 +163,44 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertFalse("Recordset members must not leak into Command", variants.contains("EOF"))
     }
 
+    fun testCompletesNestedDocumentedMemberChains() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            cmd.Parameters.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Append", "Delete", "Item", "Refresh", "Count")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set rs = Server.CreateObject("ADODB.Recordset")
+            rs.Fields.Item(0).<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Name", "Type", "Value", "ActualSize", "GetChunk")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set document = Server.CreateObject("MSXML2.DOMDocument")
+            document.documentElement.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "nodeName", "text", "selectNodes", "selectSingleNode")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set regex = New RegExp
+            regex.Execute("value").<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Count", "Item")
+    }
+
     fun testCompletesAdoRecordsetMembersInsideAsp() {
         myFixture.configureByText(
             AspFileType,
