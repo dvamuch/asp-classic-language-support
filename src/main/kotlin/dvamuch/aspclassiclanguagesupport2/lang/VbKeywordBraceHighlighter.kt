@@ -16,7 +16,7 @@ class VbKeywordBraceHighlighter : HeavyBraceHighlighter() {
     }
 
     override fun matchBrace(file: PsiFile, offset: Int): Pair<TextRange, TextRange>? {
-        if (file.language == VbScriptLanguage) return VbKeywordPairMatcher.match(file, offset)
+        if (file.language == VbScriptLanguage) return matchVbScript(file, offset)
         if (file.viewProvider !is AspFileViewProvider) return null
 
         val manager = InjectedLanguageManager.getInstance(file.project)
@@ -39,5 +39,21 @@ class VbKeywordBraceHighlighter : HeavyBraceHighlighter() {
             injectedDocument.injectedToHost(pair.first),
             injectedDocument.injectedToHost(pair.second)
         )
+    }
+
+    private fun matchVbScript(file: PsiFile, offset: Int): Pair<TextRange, TextRange>? {
+        val manager = InjectedLanguageManager.getInstance(file.project)
+        if (!manager.isInjectedFragment(file)) return VbKeywordPairMatcher.match(file, offset)
+
+        // BackgroundHighlighter selects the injected PSI file, but passes the
+        // caret offset in host-document coordinates to HeavyBraceHighlighter.
+        val injectedDocument = PsiDocumentManager.getInstance(file.project).getDocument(file) as? DocumentWindow
+            ?: return null
+        val injectedOffset = sequenceOf(offset, offset - 1)
+            .filter { hostOffset -> hostOffset >= 0 }
+            .map { hostOffset -> injectedDocument.hostToInjected(hostOffset) }
+            .firstOrNull { candidate -> candidate >= 0 }
+            ?: return null
+        return VbKeywordPairMatcher.match(file, injectedOffset)
     }
 }
