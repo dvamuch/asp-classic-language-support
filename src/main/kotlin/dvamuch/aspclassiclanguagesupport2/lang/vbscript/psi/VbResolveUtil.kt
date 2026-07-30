@@ -43,9 +43,9 @@ object VbResolveUtil {
         return true
     }
 
-    private fun visibleScopes(id: VbId): List<PsiElement> {
+    internal fun visibleScopes(place: PsiElement): List<PsiElement> {
         val scopes = mutableListOf<PsiElement>()
-        var current: PsiElement? = id.parent
+        var current: PsiElement? = place.parent
         while (current != null) {
             if (VbDeclarationUtil.isScope(current)) scopes.add(current)
             if (current is PsiFile) break

@@ -37,6 +37,8 @@
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptParserDefinition"/>
         <lang.syntaxHighlighterFactory language="VBScript"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
+        <completion.contributor language="VBScript"
+                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbCompletionContributor"/>
         <psi.referenceContributor language="VBScript"
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbReferenceContributor"/>
         <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory"/>

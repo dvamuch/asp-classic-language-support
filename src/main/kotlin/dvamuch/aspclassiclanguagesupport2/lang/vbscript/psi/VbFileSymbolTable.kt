@@ -14,11 +14,14 @@ internal data class VbDeclaration(
 )
 
 internal class VbFileSymbolTable private constructor(
+    private val allDeclarations: List<VbDeclaration>,
     private val declarationsByName: Map<String, List<VbDeclaration>>
 ) {
     fun declarations(name: String): List<VbDeclaration> {
         return declarationsByName[normalizeName(name)].orEmpty()
     }
+
+    fun declarations(): List<VbDeclaration> = allDeclarations
 
     companion object {
         fun get(file: PsiFile): VbFileSymbolTable {
@@ -30,10 +33,10 @@ internal class VbFileSymbolTable private constructor(
         private fun build(file: PsiFile): VbFileSymbolTable {
             val declarations = PsiTreeUtil.collectElementsOfType(file, VbId::class.java)
                 .mapNotNull(VbDeclarationUtil::declaration)
-                .groupBy { declaration ->
-                    normalizeName((declaration.id as? VbNamedElement)?.name.orEmpty())
-                }
-            return VbFileSymbolTable(declarations)
+            val declarationsByName = declarations.groupBy { declaration ->
+                normalizeName((declaration.id as? VbNamedElement)?.name.orEmpty())
+            }
+            return VbFileSymbolTable(declarations, declarationsByName)
         }
     }
 }
