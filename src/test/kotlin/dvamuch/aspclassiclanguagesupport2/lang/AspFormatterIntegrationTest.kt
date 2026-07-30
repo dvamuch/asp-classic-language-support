@@ -185,6 +185,41 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testIndentsPublicFunctionBodyInsideClassInIncFile() {
+        val file = myFixture.configureByText(
+            "deviceDal.inc",
+            """
+            <%
+            class DeviceDal
+            public function getById(deviceId)
+            set cmd=Server.CreateObject("ADODB.Command")
+            set getById=cmd.Execute()
+            end function
+            end class
+            %>
+            """.trimIndent()
+        )
+
+        reformat(file)
+
+        assertEquals(
+            """
+            <%
+            class DeviceDal
+                public function getById(deviceId)
+                    set cmd = Server.CreateObject("ADODB.Command")
+                    set getById = cmd.Execute()
+                end function
+            end class
+            %>
+            """.trimIndent(),
+            file.text
+        )
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Formatting a DAL class twice should be stable", onceFormatted, file.text)
+    }
+
     private fun assertReformatted(before: String, after: String) {
         val file = myFixture.configureByText(AspFileType, before)
         reformat(file)
