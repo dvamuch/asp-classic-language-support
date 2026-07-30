@@ -22,6 +22,8 @@
   и внутри ASP scriptlet-блоков;
 - работает semantic folding основных VBScript-блоков в `.vbs` и `.asp`, в том
   числе управляющих блоков, проходящих через HTML между scriptlet-блоками;
+- Structure View показывает функции, процедуры, классы и свойства в `.vbs`,
+  `.asp` и `.inc`, включая единое дерево для нескольких scriptlet-блоков;
 - resolve и Find Usages используют кэшируемые таблицы символов и быстрый
   предварительный поиск кандидатов;
 - полный аудит TTS обрабатывает 2477 файлов без зависаний; 2425 файлов
@@ -36,8 +38,8 @@
    нет типизированных подсказок членов пользовательских классов и контекстного
    ранжирования.
 2. Нет форматтера для VBScript и ASP scriptlet-блоков.
-3. Из базовых IDE-функций ещё нет brace/keyword matcher и structure view;
-   commenter и folding реализованы.
+3. Из базовых IDE-функций ещё нет brace/keyword matcher; commenter, folding и
+   Structure View реализованы.
 4. Resolve ещё не использует stub index для произвольных проектных символов и
    требует дальнейших тестов сложного shadowing/class-member поведения.
 5. Не реализованы inspections для unresolved identifier, отсутствующих include
@@ -229,6 +231,12 @@ End If
   - блоки внутри одного ASP scriptlet-а;
   - управляющие блоки, проходящие через несколько scriptlet-ов и HTML;
   - все блоки по умолчанию раскрыты.
+- Structure View:
+  - top-level `Sub`, `Function`, `Class` и `Property`;
+  - методы и свойства вложены в соответствующий `Class`;
+  - сигнатуры показывают параметры, а `Property Get/Let/Set` различаются;
+  - единая структура для VBScript из нескольких ASP scriptlet-блоков;
+  - навигация из injected PSI возвращает в физический `.asp` / `.inc` файл.
 
 Осталось:
 
@@ -239,12 +247,6 @@ End If
   - `Class` ↔ `End Class`;
   - `Select` ↔ `End Select`;
   - `With` ↔ `End With`.
-- Добавить structure view:
-  - top-level `Sub`;
-  - top-level `Function`;
-  - `Class`;
-  - `Property`.
-
 Критерий готовности:
 
 - редактирование `.asp`, `.inc`, `.vbs` становится удобнее даже без сложного resolve;
@@ -417,7 +419,7 @@ Backlog стандартных, но менее приоритетных объ�
 
 1. Проверить типизированный COM completion вручную на TTS и скорректировать
    вывод типов, ранжирование и набор документированных членов по результатам.
-2. Добавить structure view и brace/keyword matcher.
+2. Добавить brace/keyword matcher.
 3. Реализовать минимальный formatter для `.vbs`.
 4. Расширить formatter на VBScript-блоки внутри `.asp` / `.inc` и добавить
    formatting/performance regression-тесты.
