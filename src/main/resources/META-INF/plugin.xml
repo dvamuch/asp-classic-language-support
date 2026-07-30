@@ -39,6 +39,8 @@
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
         <completion.contributor language="VBScript"
                                 implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbCompletionContributor"/>
+        <codeInsight.parameterInfo language="VBScript"
+                                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbParameterInfoHandler"/>
         <psi.referenceContributor language="VBScript"
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbReferenceContributor"/>
         <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory"/>

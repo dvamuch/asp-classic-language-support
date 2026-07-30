@@ -5,6 +5,7 @@ import com.intellij.codeInsight.completion.CompletionParameters
 import com.intellij.codeInsight.completion.CompletionProvider
 import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.completion.CompletionType
+import com.intellij.codeInsight.completion.PrioritizedLookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
@@ -74,14 +75,23 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
         keywords.forEach { keyword -> result.addElement(lookup(keyword, "VBScript keyword")) }
         builtInGlobals.forEach { name -> result.addElement(lookup(name, "VBScript/ASP built-in")) }
 
+        val expectedParameterType = VbCallSignatureSupport.contextAt(position, parameters.offset)
+            ?.parameter
+            ?.typeText
         visibleDeclarations(position).forEach { declaration ->
             val name = (declaration.id as? VbNamedElement)?.name.orEmpty()
             if (name.isEmpty()) return@forEach
-            result.addElement(
-                LookupElementBuilder.createWithSmartPointer(name, declaration.id)
-                    .withCaseSensitivity(false)
-                    .withTypeText(declarationKind(declaration), true)
-            )
+            val lookup = LookupElementBuilder.createWithSmartPointer(name, declaration.id)
+                .withCaseSensitivity(false)
+                .withTypeText(declarationKind(declaration), true)
+            val rankedLookup = if (
+                declaration.id.parent is VbConstDecl && VbAdoEnumCatalog.contains(expectedParameterType, name)
+            ) {
+                PrioritizedLookupElement.withPriority(lookup, ADO_ENUM_COMPLETION_PRIORITY)
+            } else {
+                lookup
+            }
+            result.addElement(rankedLookup)
         }
     }
 
@@ -320,3 +330,4 @@ private val builtInMembers = mapOf(
 )
 
 private val memberPathStartRegex = Regex("[A-Za-z_][A-Za-z0-9_]*")
+private const val ADO_ENUM_COMPLETION_PRIORITY = 100.0
