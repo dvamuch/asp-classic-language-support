@@ -49,9 +49,11 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
         val position = parameters.position
         if (isInsideCommentOrString(parameters)) return
 
-        val memberOwner = memberOwner(position)
-        if (memberOwner != null) {
-            val builtIn = builtInMembers[memberOwner.lowercase(Locale.ROOT)]
+        val memberPath = memberPath(position)
+        if (memberPath != null) {
+            val builtIn = memberPath.singleOrNull()?.let { owner ->
+                builtInMembers[owner.lowercase(Locale.ROOT)]
+            }
             if (builtIn != null) {
                 builtIn.forEach { member ->
                     result.addElement(lookup(member, "ASP built-in member"))
@@ -59,7 +61,7 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
                 return
             }
 
-            VbObjectTypeResolver.resolve(memberOwner, position)?.let { objectType ->
+            VbObjectTypeResolver.resolve(memberPath, position)?.let { objectType ->
                 objectType.members.forEach { member ->
                     result.addElement(
                         lookup(member.name, "${objectType.displayName} ${member.kind.label}")
@@ -124,22 +126,34 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
         }
     }
 
-    private fun memberOwner(position: PsiElement): String? {
+    private fun memberPath(position: PsiElement): List<String>? {
         val id = PsiTreeUtil.getParentOfType(position, VbId::class.java, false)
-        val owner = when (val parent = id?.parent) {
+        val path = when (val parent = id?.parent) {
             is VbPostfixSuffix -> {
                 val reference = parent.parent as? VbPostfixRefExpr
-                (reference?.id as? VbNamedElement)?.name
+                val rootName = (reference?.id as? VbNamedElement)?.name
+                if (rootName == null) {
+                    null
+                } else {
+                    listOf(rootName) + reference.postfixSuffixList
+                        .takeWhile { suffix -> suffix !== parent }
+                        .mapNotNull { suffix -> (suffix.id as? VbNamedElement)?.name }
+                }
             }
 
             is VbQualifiedIdentifier -> {
-                if (parent.idList.firstOrNull() == id) null
-                else (parent.idList.firstOrNull() as? VbNamedElement)?.name
+                val currentIndex = parent.idList.indexOfFirst { candidate -> candidate === id }
+                if (currentIndex <= 0) {
+                    null
+                } else {
+                    parent.idList.take(currentIndex)
+                        .mapNotNull { pathId -> (pathId as? VbNamedElement)?.name }
+                }
             }
 
             else -> null
-        } ?: memberOwnerFromText(position)
-        return owner
+        } ?: memberPathFromText(position)
+        return path?.takeIf { it.isNotEmpty() }
     }
 
     private fun isInsideCommentOrString(parameters: CompletionParameters): Boolean {
@@ -170,13 +184,68 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
         return inString
     }
 
-    private fun memberOwnerFromText(position: PsiElement): String? {
+    private fun memberPathFromText(position: PsiElement): List<String>? {
         val text = position.containingFile?.text ?: return null
         val beforePosition = text.substring(0, position.textOffset.coerceAtMost(text.length))
-        return Regex("([A-Za-z_][A-Za-z0-9_]*)\\.\\s*$")
-            .find(beforePosition)
-            ?.groupValues
-            ?.get(1)
+        val lineStart = beforePosition.lastIndexOf('\n').let { index -> index + 1 }
+        val line = beforePosition.substring(lineStart)
+        return memberPathStartRegex.findAll(line)
+            .mapNotNull { match -> parseMemberPath(line, match.range.first) }
+            .maxByOrNull { path -> path.size }
+    }
+
+    private fun parseMemberPath(text: String, startOffset: Int): List<String>? {
+        val path = mutableListOf<String>()
+        var offset = startOffset
+        while (offset < text.length) {
+            val identifier = memberPathStartRegex.find(text, offset)
+                ?.takeIf { match -> match.range.first == offset }
+                ?: return null
+            path.add(identifier.value)
+            offset = identifier.range.last + 1
+            offset = skipWhitespace(text, offset)
+
+            while (offset < text.length && text[offset] == '(') {
+                offset = skipCallArguments(text, offset) ?: return null
+                offset = skipWhitespace(text, offset)
+            }
+
+            if (offset >= text.length || text[offset] != '.') return null
+            offset = skipWhitespace(text, offset + 1)
+            if (offset == text.length) return path
+        }
+        return null
+    }
+
+    private fun skipCallArguments(text: String, openingOffset: Int): Int? {
+        var depth = 0
+        var inString = false
+        var offset = openingOffset
+        while (offset < text.length) {
+            when (text[offset]) {
+                '"' -> {
+                    if (inString && offset + 1 < text.length && text[offset + 1] == '"') {
+                        offset++
+                    } else {
+                        inString = !inString
+                    }
+                }
+
+                '(' -> if (!inString) depth++
+                ')' -> if (!inString) {
+                    depth--
+                    if (depth == 0) return offset + 1
+                }
+            }
+            offset++
+        }
+        return null
+    }
+
+    private fun skipWhitespace(text: String, startOffset: Int): Int {
+        var offset = startOffset
+        while (offset < text.length && text[offset].isWhitespace()) offset++
+        return offset
     }
 
     private fun declarationKind(declaration: VbDeclaration): String = when (declaration.id.parent) {
@@ -241,3 +310,5 @@ private val builtInMembers = mapOf(
     "objectcontext" to listOf("SetAbort", "SetComplete"),
     "err" to listOf("Clear", "Description", "HelpContext", "HelpFile", "Number", "Raise", "Source")
 )
+
+private val memberPathStartRegex = Regex("[A-Za-z_][A-Za-z0-9_]*")
