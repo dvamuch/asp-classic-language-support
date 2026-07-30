@@ -147,6 +147,164 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertContainsElements(variants, "Response")
     }
 
+    fun testCompletesAdoCommandMembersFromServerCreateObject() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Dim cmd
+            Set cmd = Server.CreateObject("ADODB.Command")
+            cmd.<caret>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "ActiveConnection", "CommandText", "Parameters", "CreateParameter", "Execute")
+        assertFalse("Recordset members must not leak into Command", variants.contains("EOF"))
+    }
+
+    fun testCompletesAdoRecordsetMembersInsideAsp() {
+        myFixture.configureByText(
+            AspFileType,
+            """
+            <%
+            Set rs = Server.CreateObject ("adodb.recordset")
+            rs.<caret>
+            %>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "EOF", "BOF", "Fields", "MoveNext", "RecordCount")
+    }
+
+    fun testPropagatesAdoExecuteReturnType() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            Set records = cmd.Execute
+            records.<caret>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "EOF", "Fields", "MoveNext", "Close")
+        assertFalse("Command-only members must not leak into returned Recordset", variants.contains("CommandText"))
+    }
+
+    fun testCompletesFileSystemObjectAndReturnedTextStream() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set fso = CreateObject("Scripting.FileSystemObject")
+            Set input = fso.OpenTextFile("input.txt")
+            input.<caret>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "AtEndOfStream", "ReadLine", "ReadAll", "Close")
+        assertFalse("FileSystemObject members must not leak into TextStream", variants.contains("FileExists"))
+    }
+
+    fun testResolvesCreateObjectProgIdFromStringAssignment() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            MM_flag = "ADODB.Recordset"
+            Set MM_rsUser = Server.CreateObject(MM_flag)
+            MM_rsUser.<caret>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "EOF", "Open", "CursorType")
+    }
+
+    fun testCompletesDocumentedXmlHttpAndRegExpObjects() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set http = Server.CreateObject("MSXML2.ServerXMLHTTP")
+            http.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "open", "send", "responseText", "responseXML", "setTimeouts")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set regex = New RegExp
+            regex.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Pattern", "IgnoreCase", "Execute", "Replace", "Test")
+    }
+
+    fun testCompletesOtherDocumentedComRootsUsedByTts() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set connection = Server.CreateObject("ADODB.Connection")
+            connection.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "ConnectionString", "Open", "Execute", "BeginTrans")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set values = CreateObject("Scripting.Dictionary")
+            values.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Add", "Exists", "Keys", "Items", "Count")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set document = Server.CreateObject("Microsoft.XMLDOM")
+            document.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "load", "loadXML", "documentElement", "selectSingleNode")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set http = Server.CreateObject("WinHttp.WinHttpRequest.5.1")
+            http.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Open", "Send", "SetRequestHeader", "ResponseText")
+    }
+
+    fun testDoesNotGuessMembersForCustomOrReassignedComObject() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set component = Server.CreateObject("SMTPRus.SMTPRus.1")
+            component.<caret>
+            """.trimIndent()
+        )
+        assertEmpty(completionVariants())
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set component = Server.CreateObject("ADODB.Recordset")
+            Set component = Server.CreateObject("Vendor.CustomComponent")
+            component.<caret>
+            """.trimIndent()
+        )
+        assertFalse("The latest unknown assignment must clear an older known type", completionVariants().contains("EOF"))
+    }
+
     private fun completionVariants(): List<String> {
         return myFixture.completeBasic()?.map { it.lookupString }.orEmpty()
     }

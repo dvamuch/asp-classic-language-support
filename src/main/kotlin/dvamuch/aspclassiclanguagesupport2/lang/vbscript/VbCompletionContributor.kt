@@ -51,8 +51,20 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
 
         val memberOwner = memberOwner(position)
         if (memberOwner != null) {
-            builtInMembers[memberOwner.lowercase(Locale.ROOT)].orEmpty().forEach { member ->
-                result.addElement(lookup(member, "ASP built-in member"))
+            val builtIn = builtInMembers[memberOwner.lowercase(Locale.ROOT)]
+            if (builtIn != null) {
+                builtIn.forEach { member ->
+                    result.addElement(lookup(member, "ASP built-in member"))
+                }
+                return
+            }
+
+            VbObjectTypeResolver.resolve(memberOwner, position)?.let { objectType ->
+                objectType.members.forEach { member ->
+                    result.addElement(
+                        lookup(member.name, "${objectType.displayName} ${member.kind.label}")
+                    )
+                }
             }
             return
         }
