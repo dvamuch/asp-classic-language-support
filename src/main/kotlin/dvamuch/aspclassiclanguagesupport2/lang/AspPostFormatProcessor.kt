@@ -10,26 +10,28 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.codeStyle.CodeStyleSettings
 import com.intellij.psi.impl.source.codeStyle.PostFormatProcessor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptControlFlowTracker
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptIndentNormalizer
 
 class AspPostFormatProcessor : PostFormatProcessor {
     override fun processElement(source: PsiElement, settings: CodeStyleSettings): PsiElement {
         val file = source.containingFile ?: return source
         if (file.language != AspLanguage || isProcessing.get()) return source
-        formatVbScriptFragments(file)
+        formatVbScriptFragments(file, settings)
         return source
     }
 
     override fun processText(source: PsiFile, rangeToReformat: TextRange, settings: CodeStyleSettings): TextRange {
         if (source.language != AspLanguage || isProcessing.get()) return rangeToReformat
         val oldLength = source.textLength
-        formatVbScriptFragments(source)
+        formatVbScriptFragments(source, settings)
         val delta = source.textLength - oldLength
         return TextRange(rangeToReformat.startOffset, (rangeToReformat.endOffset + delta).coerceAtMost(source.textLength))
     }
 
     override fun isWhitespaceOnly(): Boolean = true
 
-    private fun formatVbScriptFragments(file: PsiFile) {
+    private fun formatVbScriptFragments(file: PsiFile, settings: CodeStyleSettings) {
         val documentManager = PsiDocumentManager.getInstance(file.project)
         val document = documentManager.getDocument(file) ?: return
         isProcessing.set(true)
@@ -57,6 +59,10 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 .toList()
                 .sortedBy { fragment -> fragment.contentRange.startOffset }
             if (fragments.isEmpty()) return
+            val indentSize = settings.getCommonSettings(
+                dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
+            ).indentOptions?.INDENT_SIZE ?: 4
+            val controlProfiles = analyzeControlFlow(fragments)
 
             val markedSource = buildMarkedSource(fragments)
             val temporaryFile = PsiFileFactory.getInstance(file.project).createFileFromText(
@@ -65,19 +71,19 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 markedSource
             )
             CodeStyleManager.getInstance(file.project).reformat(temporaryFile)
-            val formattedSource = temporaryFile.text
+            val formattedSource = VbScriptIndentNormalizer.normalizeText(temporaryFile.text, indentSize)
 
             val replacements = fragments.mapIndexed { index, fragment ->
                 val formatted = extractFragment(formattedSource, index)
                     ?: return@mapIndexed fragment.originalContent
-                prepareForHost(fragment, formatted)
+                prepareForHost(fragment, formatted, controlProfiles[index], indentSize)
             }
             fragments.indices.reversed().forEach { index ->
                 val range = fragments[index].contentRange
                 document.replaceString(range.startOffset, range.endOffset, replacements[index])
             }
             documentManager.commitDocument(document)
-            alignClosingDelimiters(file)
+            applySemanticLayout(file, controlProfiles, indentSize)
             documentManager.commitDocument(document)
         } finally {
             isProcessing.remove()
@@ -151,7 +157,12 @@ class AspPostFormatProcessor : PostFormatProcessor {
             .removeSuffix("\r")
     }
 
-    private fun prepareForHost(fragment: Fragment, formattedContent: String): String {
+    private fun prepareForHost(
+        fragment: Fragment,
+        formattedContent: String,
+        profile: ControlProfile,
+        indentSize: Int
+    ): String {
         var content = formattedContent
         if (fragment.expressionPrefix != null) {
             val prefixOffset = content.indexOf(fragment.expressionPrefix, ignoreCase = true)
@@ -161,21 +172,27 @@ class AspPostFormatProcessor : PostFormatProcessor {
         }
 
         val originalHasLineBreak = fragment.originalContent.any { char -> char == '\n' || char == '\r' }
+        if (!originalHasLineBreak && profile.isBoundary) {
+            val closingIndent = fragment.baseIndent + " ".repeat(profile.endDepth * indentSize)
+            return "\n${fragment.baseIndent}${content.trim()}\n$closingIndent"
+        }
         if (!originalHasLineBreak) return " ${content.trim()} "
 
         val startsOnNextLine = fragment.originalContent.startsWith('\n') || fragment.originalContent.startsWith("\r\n")
         val endsOnOwnLine = fragment.originalContent.endsWith('\n') || fragment.originalContent.endsWith('\r')
         if (startsOnNextLine && !content.startsWith('\n') && !content.startsWith('\r')) content = "\n$content"
         if (endsOnOwnLine && !content.endsWith('\n') && !content.endsWith('\r')) content += "\n"
-        return addBaseIndent(content, fragment.baseIndent)
+        return addBaseIndent(content, fragment.baseIndent, profile.endDepth * indentSize)
     }
 
-    private fun addBaseIndent(content: String, baseIndent: String): String {
+    private fun addBaseIndent(content: String, baseIndent: String, closingExtraIndent: Int): String {
         val lines = content.split('\n')
         return lines.mapIndexed { index, rawLine ->
             val line = rawLine.removeSuffix("\r")
             if (index == 0) {
                 line
+            } else if (index == lines.lastIndex && line.isEmpty()) {
+                baseIndent + " ".repeat(closingExtraIndent)
             } else if (line.isNotEmpty() || index == lines.lastIndex) {
                 baseIndent + line
             } else {
@@ -196,28 +213,89 @@ class AspPostFormatProcessor : PostFormatProcessor {
         return lineStart
     }
 
-    private fun alignClosingDelimiters(file: PsiFile) {
+    private fun applySemanticLayout(file: PsiFile, profiles: List<ControlProfile>, indentSize: Int) {
         val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return
         val hosts = SyntaxTraverser.psiTraverser(file)
             .filter(AspOuterPsiElement::class.java)
             .filter { host -> aspScriptletInfo(host) != null }
             .toList()
-            .sortedByDescending { host -> host.textRange.startOffset }
+            .sortedBy { host -> host.textRange.startOffset }
+        if (hosts.size != profiles.size) return
 
-        for (host in hosts) {
-            val closeOffset = host.textRange.endOffset - 2
-            if (closeOffset < 0 || closeOffset > document.textLength) continue
-            val closeLine = document.getLineNumber(closeOffset)
-            val closeLineStart = document.getLineStartOffset(closeLine)
-            val beforeClose = document.charsSequence.subSequence(closeLineStart, closeOffset)
-            if (beforeClose.any { char -> char != ' ' && char != '\t' }) continue
-
+        val replacements = linkedMapOf<TextRange, String>()
+        hosts.forEachIndexed { index, host ->
+            val profile = profiles[index]
             val openOffset = host.textRange.startOffset
-            val openLine = document.getLineNumber(openOffset)
-            val openLineStart = document.getLineStartOffset(openLine)
+            val openLineStart = document.getLineStartOffset(document.getLineNumber(openOffset))
             val beforeOpen = document.charsSequence.subSequence(openLineStart, openOffset)
-            val openIndent = if (beforeOpen.all { char -> char == ' ' || char == '\t' }) beforeOpen.toString() else ""
-            document.replaceString(closeLineStart, closeOffset, openIndent)
+            if (beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.startDepth > 0) {
+                replacements[TextRange(openLineStart, openOffset)] =
+                    beforeOpen.toString() + " ".repeat(profile.startDepth * indentSize)
+            }
+
+            val segmentStart = host.textRange.endOffset
+            val segmentEnd = hosts.getOrNull(index + 1)?.textRange?.startOffset ?: document.textLength
+            if (profile.endDepth > 0) {
+                collectHtmlLineIndentReplacements(
+                    document.charsSequence,
+                    segmentStart,
+                    segmentEnd,
+                    profile.endDepth * indentSize,
+                    replacements
+                )
+            }
+        }
+        replacements.entries.sortedByDescending { (range, _) -> range.startOffset }
+            .forEach { (range, replacement) ->
+                document.replaceString(range.startOffset, range.endOffset, replacement)
+            }
+    }
+
+    private fun collectHtmlLineIndentReplacements(
+        text: CharSequence,
+        startOffset: Int,
+        endOffset: Int,
+        extraIndent: Int,
+        replacements: MutableMap<TextRange, String>
+    ) {
+        var lineStart = if (startOffset == 0 || text[startOffset - 1] == '\n' || text[startOffset - 1] == '\r') {
+            startOffset
+        } else {
+            nextLineStart(text, startOffset, endOffset)
+        }
+        while (lineStart < endOffset) {
+            var firstCode = lineStart
+            while (firstCode < endOffset && (text[firstCode] == ' ' || text[firstCode] == '\t')) firstCode++
+            if (firstCode < endOffset && text[firstCode] != '\n' && text[firstCode] != '\r') {
+                val currentIndent = text.subSequence(lineStart, firstCode).toString()
+                replacements[TextRange(lineStart, firstCode)] = currentIndent + " ".repeat(extraIndent)
+            }
+            lineStart = nextLineStart(text, firstCode, endOffset)
+        }
+    }
+
+    private fun nextLineStart(text: CharSequence, offset: Int, limit: Int): Int {
+        var current = offset
+        while (current < limit && text[current] != '\n' && text[current] != '\r') current++
+        while (current < limit && (text[current] == '\n' || text[current] == '\r')) current++
+        return current
+    }
+
+    private fun analyzeControlFlow(fragments: List<Fragment>): List<ControlProfile> {
+        val tracker = VbScriptControlFlowTracker()
+        return fragments.map { fragment ->
+            val startDepth = tracker.depth
+            var hasBoundary = false
+            if (fragment.expressionPrefix == null) {
+                fragment.originalContent.lineSequence().forEach { rawLine ->
+                    if (tracker.consume(rawLine).isBoundary) hasBoundary = true
+                }
+            }
+            ControlProfile(
+                startDepth = startDepth,
+                endDepth = tracker.depth,
+                isBoundary = hasBoundary && fragment.originalContent.none { char -> char == '\n' || char == '\r' }
+            )
         }
     }
 
@@ -228,6 +306,12 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val originalContent: String,
         val expressionPrefix: String?,
         val baseIndent: String
+    )
+
+    private data class ControlProfile(
+        val startDepth: Int,
+        val endDepth: Int,
+        val isBoundary: Boolean
     )
 
     companion object {

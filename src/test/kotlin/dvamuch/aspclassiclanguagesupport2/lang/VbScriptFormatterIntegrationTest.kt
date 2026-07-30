@@ -175,6 +175,52 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
         assertTrue(file.text.contains("\"unchanged  literal\""))
     }
 
+    fun testNormalizesFirstStatementAndExistingTwoSpaceIndents() {
+        assertReformatted(
+            """
+            If condition Then
+              first=value+1
+              second=value+2
+            End If
+            """.trimIndent(),
+            """
+            If condition Then
+                first = value + 1
+                second = value + 2
+            End If
+            """.trimIndent()
+        )
+    }
+
+    fun testNormalizesMixedLegacyIndentAfterBlankLineAndComment() {
+        assertReformatted(
+            """
+            If (CStr(Request("MM_insert")) = "form1") Then
+
+              MM_editConnection=MM_connection_STRING
+                MM_editTable="dbo.Bugs"
+
+                ' create arrays
+              For MM_i=LBound(MM_fields) To UBound(MM_fields) Step 2
+                value=value+1
+              Next
+            End If
+            """.trimIndent(),
+            """
+            If (CStr(Request("MM_insert")) = "form1") Then
+
+                MM_editConnection = MM_connection_STRING
+                MM_editTable = "dbo.Bugs"
+
+                ' create arrays
+                For MM_i = LBound(MM_fields) To UBound(MM_fields) Step 2
+                    value = value + 1
+                Next
+            End If
+            """.trimIndent()
+        )
+    }
+
     private fun assertReformatted(before: String, after: String) {
         val file = myFixture.configureByText(VbScriptFileType, before)
         reformat(file)

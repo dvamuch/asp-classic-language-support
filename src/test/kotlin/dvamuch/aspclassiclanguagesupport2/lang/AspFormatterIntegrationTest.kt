@@ -74,9 +74,9 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
             <div>
                 <%
                 If enabled Then
-                %>
-                <section>Text</section>
-                <%
+                    %>
+                    <section>Text</section>
+                    <%
                     value = value + 1
                 End If
                 %>
@@ -110,6 +110,79 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         val onceFormatted = file.text
         reformat(file)
         assertEquals("Formatting an INC file twice should be stable", onceFormatted, file.text)
+    }
+
+    fun testExpandsInlineIfAroundHtmlAndKeepsFourSpaceNesting() {
+        assertReformatted(
+            """
+            <% if isAuthor = 0 then %>
+            <script type="text/javascript">
+                alert('Message' + '\n' +
+                    'Second line')
+            </script>
+
+            <% end if %>
+            """.trimIndent(),
+            """
+            <%
+            if isAuthor = 0 then
+                %>
+                <script type="text/javascript">
+                    alert('Message' + '\n' +
+                        'Second line')
+                </script>
+
+                <%
+            end if
+            %>
+            """.trimIndent()
+        )
+    }
+
+    fun testNormalizesFirstStatementInsideMultilineScriptlet() {
+        assertReformatted(
+            """
+            <%
+            If condition Then
+              first=value+1
+              second=value+2
+            End If
+            %>
+            """.trimIndent(),
+            """
+            <%
+            If condition Then
+                first = value + 1
+                second = value + 2
+            End If
+            %>
+            """.trimIndent()
+        )
+    }
+
+    fun testExpandsInlineElseBranchAroundHtml() {
+        assertReformatted(
+            """
+            <% If ready Then %>
+            <p>Ready</p>
+            <% Else %>
+            <p>Not ready</p>
+            <% End If %>
+            """.trimIndent(),
+            """
+            <%
+            If ready Then
+                %>
+                <p>Ready</p>
+                <%
+            Else
+                %>
+                <p>Not ready</p>
+                <%
+            End If
+            %>
+            """.trimIndent()
+        )
     }
 
     private fun assertReformatted(before: String, after: String) {
