@@ -19,10 +19,7 @@ class VbScriptParserDefinition : ParserDefinition {
 
     override fun getFileNodeType(): IFileElementType = FILE
 
-    override fun getWhitespaceTokens(): TokenSet = TokenSet.create(
-        com.intellij.psi.TokenType.WHITE_SPACE,
-        VbTypes.COMMENT
-    )
+    override fun getWhitespaceTokens(): TokenSet = TokenSet.create(com.intellij.psi.TokenType.WHITE_SPACE)
 
     override fun getCommentTokens(): TokenSet = TokenSet.create(VbTypes.COMMENT)
 

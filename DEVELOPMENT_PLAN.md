@@ -18,6 +18,10 @@
 - работает completion для VBScript/ASP built-ins, текущего scope,
   транзитивно подключённых include-файлов и популярных документированных
   COM-объектов;
+- работает стандартное построчное комментирование VBScript через `'` в `.vbs`
+  и внутри ASP scriptlet-блоков;
+- работает semantic folding основных VBScript-блоков в `.vbs` и `.asp`, в том
+  числе управляющих блоков, проходящих через HTML между scriptlet-блоками;
 - resolve и Find Usages используют кэшируемые таблицы символов и быстрый
   предварительный поиск кандидатов;
 - полный аудит TTS обрабатывает 2477 файлов без зависаний; 2425 файлов
@@ -32,8 +36,8 @@
    нет типизированных подсказок членов пользовательских классов и контекстного
    ранжирования.
 2. Нет форматтера для VBScript и ASP scriptlet-блоков.
-3. Нет стандартных IDE-функций: brace matcher, commenter, folding и
-   structure view.
+3. Из базовых IDE-функций ещё нет brace/keyword matcher и structure view;
+   commenter и folding реализованы.
 4. Resolve ещё не использует stub index для произвольных проектных символов и
    требует дальнейших тестов сложного shadowing/class-member поведения.
 5. Не реализованы inspections для unresolved identifier, отсутствующих include
@@ -213,11 +217,21 @@ End If
 
 ### 4. Базовые IDE-функции для удобства редактирования
 
-План работ:
+Реализовано:
 
-- Добавить commenter:
+- Commenter:
   - VBScript line comment через `'`;
-  - учитывать, что ASP Classic не использует `<%-- --%>`.
+  - работает в `.vbs` и injected VBScript внутри `.asp` / `.inc`;
+  - ASP Classic не использует `<%-- --%>` как VBScript-комментарий.
+- Folding:
+  - блоки `Sub`, `Function`, `Property`, `Class`;
+  - многострочные `If`, `Select`, `For`, `For Each`, `Do`, `While`, `With`;
+  - блоки внутри одного ASP scriptlet-а;
+  - управляющие блоки, проходящие через несколько scriptlet-ов и HTML;
+  - все блоки по умолчанию раскрыты.
+
+Осталось:
+
 - Добавить brace/keyword matcher:
   - `If` ↔ `End If`;
   - `Sub` ↔ `End Sub`;
@@ -225,10 +239,6 @@ End If
   - `Class` ↔ `End Class`;
   - `Select` ↔ `End Select`;
   - `With` ↔ `End With`.
-- Добавить folding:
-  - блоки `Sub`, `Function`, `Class`;
-  - крупные `If`, `Select`, циклы;
-  - ASP scriptlet-блоки при необходимости.
 - Добавить structure view:
   - top-level `Sub`;
   - top-level `Function`;
@@ -407,7 +417,7 @@ Backlog стандартных, но менее приоритетных объ�
 
 1. Проверить типизированный COM completion вручную на TTS и скорректировать
    вывод типов, ранжирование и набор документированных членов по результатам.
-2. Добавить commenter, folding, structure view и matcher.
+2. Добавить structure view и brace/keyword matcher.
 3. Реализовать минимальный formatter для `.vbs`.
 4. Расширить formatter на VBScript-блоки внутри `.asp` / `.inc` и добавить
    formatting/performance regression-тесты.
