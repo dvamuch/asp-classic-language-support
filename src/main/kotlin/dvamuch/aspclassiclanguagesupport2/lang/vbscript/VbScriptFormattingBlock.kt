@@ -11,7 +11,8 @@ import com.intellij.formatting.Wrap
 import com.intellij.lang.ASTNode
 import com.intellij.psi.TokenType
 import com.intellij.psi.formatter.common.AbstractBlock
-import com.intellij.psi.tree.IElementType
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFormattingSupport.indentationLevel
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFormattingSupport.isLineContinuation
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
 internal class VbScriptFormattingBlock(
@@ -20,7 +21,8 @@ internal class VbScriptFormattingBlock(
     alignment: Alignment? = null,
     private val indent: Indent?,
     private val spacingBuilder: SpacingBuilder,
-    private val indentSize: Int
+    private val indentSize: Int,
+    private val baseIndentProvider: VbScriptBaseIndentProvider
 ) : AbstractBlock(node, wrap, alignment) {
     override fun buildChildren(): List<Block> = buildList {
         var child = myNode.firstChildNode
@@ -31,7 +33,8 @@ internal class VbScriptFormattingBlock(
                         node = child,
                         indent = Indent.getNoneIndent(),
                         spacingBuilder = spacingBuilder,
-                        indentSize = indentSize
+                        indentSize = indentSize,
+                        baseIndentProvider = baseIndentProvider
                     )
                 )
             }
@@ -47,7 +50,11 @@ internal class VbScriptFormattingBlock(
         }
         if (child1 != null && endsWithLineBreak(child1) && !startsWithLineBreak(child2)) {
             val node = (child2 as? ASTBlock)?.node
-            val spaces = if (node == null) 0 else indentationLevel(node) * indentSize
+            val spaces = if (node == null) {
+                0
+            } else {
+                baseIndentProvider.indentFor(node) + indentationLevel(node) * indentSize
+            }
             return Spacing.createSpacing(spaces, spaces, 0, true, 0)
         }
         return spacingBuilder.getSpacing(this, child1, child2)
@@ -87,10 +94,6 @@ internal class VbScriptFormattingBlock(
         return isLineContinuation(text)
     }
 
-    private fun isLineContinuation(text: CharSequence): Boolean {
-        return text.indexOf('_') >= 0 && (text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0)
-    }
-
     private fun endsWithLineBreak(block: Block): Boolean {
         var node = (block as? ASTBlock)?.node ?: return false
         while (true) node = node.lastChildNode ?: break
@@ -105,43 +108,4 @@ internal class VbScriptFormattingBlock(
         return text.startsWith('\n') || text.startsWith('\r')
     }
 
-    private fun indentationLevel(node: ASTNode): Int {
-        var level = 0
-        var child = node
-        var parent = child.treeParent
-        while (parent != null) {
-            level += indentationContribution(parent.elementType, child.elementType)
-            child = parent
-            parent = parent.treeParent
-        }
-        return level
-    }
-
-    private fun indentationContribution(parent: IElementType, child: IElementType): Int {
-        if (child == VbTypes.STATEMENT_LIST && parent in STATEMENT_BODY_PARENTS) return 1
-        if (parent == VbTypes.CLASS_STMT && child == VbTypes.CLASS_BODY) return 1
-        if (parent == VbTypes.SELECT_STMT &&
-            (child == VbTypes.CASE_BLOCK || child == VbTypes.CASE_ELSE_BLOCK)
-        ) return 1
-        if ((parent == VbTypes.ELSEIF_BLOCK || parent == VbTypes.ELSE_BLOCK) &&
-            child == VbTypes.IF_BLOCK_BRANCH
-        ) return 1
-        return 0
-    }
-
-    companion object {
-        private val STATEMENT_BODY_PARENTS = setOf(
-            VbTypes.FUNCTION_STMT,
-            VbTypes.SUB_STMT,
-            VbTypes.PROPERTY_STMT,
-            VbTypes.IF_BLOCK_STMT,
-            VbTypes.FOR_STMT,
-            VbTypes.FOREACH_STMT,
-            VbTypes.DO_STMT,
-            VbTypes.WHILE_STMT,
-            VbTypes.WITH_STMT,
-            VbTypes.CASE_BLOCK,
-            VbTypes.CASE_ELSE_BLOCK
-        )
-    }
 }
