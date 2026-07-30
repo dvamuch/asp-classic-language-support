@@ -120,6 +120,12 @@ legacy-кода, но требует отдельной осторожной р�
   - отсутствие лишних пробелов перед `)` и после `(`;
   - аккуратное форматирование присваиваний `=`;
   - сохранение строковых литералов и комментариев без повреждений.
+- Добавить настройки регистра ключевых слов:
+  - сохранять исходный регистр;
+  - canonical/Pascal Case (`If`, `End If`, `Option Explicit`);
+  - `UPPER CASE`;
+  - `lower case`;
+  - formatter и completion должны использовать одну настройку.
 - Поддержать ASP scriptlet-контекст:
   - форматировать VBScript внутри `<% ... %>`;
   - не ломать HTML-части файла;
@@ -259,8 +265,14 @@ End If
 
 Осталось:
 
+- best-effort type inference по присваиваниям вида
+  `Set cmd = Server.CreateObject("ADODB.Command")` и
+  `Set rs = Server.CreateObject("ADODB.Recordset")`;
+- типизированный member completion для ADO (`Command`, `Recordset`,
+  `Connection`, `Parameter`, `Field`) и известных возвращаемых значений;
 - типизированный member completion для пользовательских классов и объектов;
 - контекстное ранжирование и insert handlers для конструкций с параметрами;
+- применение настройки регистра ключевых слов при вставке completion;
 - при появлении stub index — completion проектных символов вне include-графа.
 
 Критерий готовности:
