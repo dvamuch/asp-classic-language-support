@@ -238,6 +238,82 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testShowsParameterInfoAndHighlightsCurrentCreateParameterArgument() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            Set parameter = cmd.CreateParameter("user_id", adInteger, <caret>adParamInput, 4, value)
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "CreateParameter([Name As String], [Type As DataTypeEnum], " +
+                "<b>[Direction As ParameterDirectionEnum]</b>, [Size As Long], [Value As Variant])",
+            myFixture.parameterInfoAtCaret
+        )
+    }
+
+    fun testParameterInfoCountsOnlyTopLevelCommas() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            Set parameter = cmd.CreateParameter(BuildName("last, first", value), adInteger, adParamInput, <caret>4, value)
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "CreateParameter([Name As String], [Type As DataTypeEnum], " +
+                "[Direction As ParameterDirectionEnum], <b>[Size As Long]</b>, [Value As Variant])",
+            myFixture.parameterInfoAtCaret
+        )
+    }
+
+    fun testShowsInnerCreateParameterInfoInsideInjectedAsp() {
+        myFixture.configureByText(
+            AspFileType,
+            """
+            <%
+            Set MM_editCmd = Server.CreateObject("ADODB.Command")
+            MM_editCmd.Parameters.Append(MM_editCmd.CreateParameter("complexity", adInteger, <caret>adParamInput, 0, complexity))
+            %>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "CreateParameter([Name As String], [Type As DataTypeEnum], " +
+                "<b>[Direction As ParameterDirectionEnum]</b>, [Size As Long], [Value As Variant])",
+            myFixture.parameterInfoAtCaret
+        )
+    }
+
+    fun testRanksVisibleAdoConstantsForExpectedCreateParameterEnum() {
+        val declarations = """
+            Const adParamInput = 1
+            Const adParamOutput = 2
+            Const adInteger = 3
+            Const adVarChar = 200
+            Set cmd = Server.CreateObject("ADODB.Command")
+        """.trimIndent()
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            "$declarations\nSet parameter = cmd.CreateParameter(\"id\", ad<caret>)"
+        )
+        val typeVariants = completionVariants()
+        assertOrderedBefore(typeVariants, "adInteger", "adParamInput")
+        assertOrderedBefore(typeVariants, "adVarChar", "adParamOutput")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            "$declarations\nSet parameter = cmd.CreateParameter(\"id\", adInteger, ad<caret>)"
+        )
+        val directionVariants = completionVariants()
+        assertOrderedBefore(directionVariants, "adParamInput", "adInteger")
+        assertOrderedBefore(directionVariants, "adParamOutput", "adVarChar")
+    }
+
     fun testCompletesAdoRecordsetMembersInsideAsp() {
         myFixture.configureByText(
             AspFileType,
@@ -398,5 +474,16 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertTrue("Completion marker should exist", offset >= marker.length)
         myFixture.editor.caretModel.moveToOffset(offset)
         return completionVariants()
+    }
+
+    private fun assertOrderedBefore(variants: List<String>, expectedFirst: String, expectedLater: String) {
+        val firstIndex = variants.indexOf(expectedFirst)
+        val laterIndex = variants.indexOf(expectedLater)
+        assertTrue("Completion must contain '$expectedFirst': $variants", firstIndex >= 0)
+        assertTrue("Completion must contain '$expectedLater': $variants", laterIndex >= 0)
+        assertTrue(
+            "'$expectedFirst' must be ranked before '$expectedLater': $variants",
+            firstIndex < laterIndex
+        )
     }
 }
