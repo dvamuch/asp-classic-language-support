@@ -15,8 +15,9 @@
 - работает scope-aware `Go To Definition` внутри файла и по цепочкам include;
 - работает `Find Usages` для локальных и подключаемых символов;
 - include-директивы индексируются, поддерживают навигацию и обратный поиск;
-- работает базовый completion для VBScript/ASP built-ins, текущего scope и
-  транзитивно подключённых include-файлов;
+- работает completion для VBScript/ASP built-ins, текущего scope,
+  транзитивно подключённых include-файлов и популярных документированных
+  COM-объектов;
 - resolve и Find Usages используют кэшируемые таблицы символов и быстрый
   предварительный поиск кандидатов;
 - полный аудит TTS обрабатывает 2477 файлов без зависаний; 2425 файлов
@@ -27,8 +28,9 @@
 
 ## Главные проблемы
 
-1. Базовый completion реализован, но пока нет типизированных подсказок членов
-   пользовательских классов/объектов и контекстного ранжирования.
+1. Completion популярных документированных COM-объектов реализован, но пока
+   нет типизированных подсказок членов пользовательских классов и контекстного
+   ранжирования.
 2. Нет форматтера для VBScript и ASP scriptlet-блоков.
 3. Нет стандартных IDE-функций: brace matcher, commenter, folding и
    structure view.
@@ -238,7 +240,7 @@ End If
 - редактирование `.asp`, `.inc`, `.vbs` становится удобнее даже без сложного resolve;
 - функции не создают заметной нагрузки на больших файлах.
 
-### 5. Completion — базовый этап реализован
+### 5. Completion — базовый и документированный COM-этапы реализованы
 
 Реализовано:
 
@@ -262,18 +264,49 @@ End If
 - подавление подсказок внутри строк/комментариев и после точки неизвестного
   объекта;
 - case-insensitive lookup и integration-тесты для `.vbs` и injected ASP.
+- best-effort type inference из:
+  - `Server.CreateObject("ProgID")`;
+  - `CreateObject("ProgID")`;
+  - ProgID в локальной строковой переменной/константе;
+  - `New RegExp`;
+  - известных возвращаемых значений, например `Set rs = cmd.Execute` и
+    `Set stream = fso.OpenTextFile(...)`;
+- кэшируемый scope-aware индекс простых присваиваний, учитывающий последнее
+  присваивание перед местом completion;
+- ограниченный каталог популярных объектов с официальной документацией:
+  - ADO: `Connection`, `Command`, `Recordset`, `Stream`, `Parameter`, `Field`
+    и основные коллекции;
+  - Scripting Runtime: `Dictionary`, `FileSystemObject`, `File`, `Folder`,
+    `Drive`, `TextStream`;
+  - MSXML: `DOMDocument`, DOM nodes/lists, `ServerXMLHTTP`;
+  - `WinHttp.WinHttpRequest.5.1`;
+  - `VBScript.RegExp` и результаты `Execute`;
+- неизвестные и кастомные ProgID намеренно не получают предполагаемых членов.
 
 Осталось:
 
-- best-effort type inference по присваиваниям вида
-  `Set cmd = Server.CreateObject("ADODB.Command")` и
-  `Set rs = Server.CreateObject("ADODB.Recordset")`;
-- типизированный member completion для ADO (`Command`, `Recordset`,
-  `Connection`, `Parameter`, `Field`) и известных возвращаемых значений;
+- распространение типа через более длинные цепочки и default members, например
+  `rs.Fields("Name").Value`;
+- type inference для объектов, присвоенных в include-файле и используемых в
+  подключающем ASP-файле;
 - типизированный member completion для пользовательских классов и объектов;
 - контекстное ранжирование и insert handlers для конструкций с параметрами;
 - применение настройки регистра ключевых слов при вставке completion;
 - при появлении stub index — completion проектных символов вне include-графа.
+
+Backlog стандартных, но менее приоритетных объектов:
+
+- `CDO.Message` и `CDO.Configuration`;
+- ADSI-типы, получаемые через `GetObject("WinNT://...")` / `LDAP://...`;
+- `WScript.Shell`;
+- устаревшие IIS-компоненты `MSWC.*`;
+- Office Automation (`Excel.Application` и аналогичные) — только с явным
+  предупреждением, так как серверная автоматизация Office не рекомендуется;
+- `<OBJECT RUNAT="Server" PROGID="...">` как дополнительный источник типа.
+
+Кастомные ProgID (`SMTPRus.SMTPRus.1`, `LYFUpload.UploadFile` и любые компоненты
+конкретного проекта) не включать во встроенный каталог. В будущем можно добавить
+пользовательские декларации типов/членов, но плагин не должен угадывать их API.
 
 Критерий готовности:
 
@@ -355,8 +388,8 @@ End If
 
 ## Рекомендуемый порядок ближайших задач
 
-1. Проверить базовый completion вручную на TTS и скорректировать ранжирование,
-   набор встроенных функций и членов объектов по результатам использования.
+1. Проверить типизированный COM completion вручную на TTS и скорректировать
+   вывод типов, ранжирование и набор документированных членов по результатам.
 2. Добавить commenter, folding, structure view и matcher.
 3. Реализовать минимальный formatter для `.vbs`.
 4. Расширить formatter на VBScript-блоки внутри `.asp` / `.inc` и добавить
