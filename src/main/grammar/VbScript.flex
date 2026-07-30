@@ -82,6 +82,7 @@ REM_COMMENT = "rem"[ \t][^\r\n]*
 "const" { return CONST; }
 "public" { return PUBLIC_KW; }
 "private" { return PRIVATE_KW; }
+"default" { return DEFAULT; }
 "class" { return CLASS; }
 "end" { return END; }
 "function" { return FUNCTION; }

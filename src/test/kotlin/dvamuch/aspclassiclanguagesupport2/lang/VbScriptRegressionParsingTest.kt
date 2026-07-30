@@ -16,6 +16,14 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
             Function CurrentUser()
                 CurrentUser = "guest"
             End Function
+
+            Function EmptyCallback()
+
+            End Function
+
+            Class EmptyClass
+
+            End Class
             """.trimIndent()
         )
     }
@@ -26,6 +34,35 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
             Response.ContentType = "text/html"
             Response.AddHeader "Content-Type", "text/html;charset=utf-8"
             Response.AddHeader "Cache-Control", "no-cache, no-store, must-revalidate"
+            recordset.Open, connection
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesVisibilityDeclarationsAndMembers() {
+        assertParses(
+            """
+            Class JsonEncoder
+                Private output, innerCall
+                Public Count
+
+                Private Sub Class_Initialize()
+                    Count = 0
+                End Sub
+
+                Public Default Function Encode(value)
+                    Encode = value
+                End Function
+            End Class
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesMultidimensionalArrayDeclarations() {
+        assertParses(
+            """
+            Dim DepartmentRow(11, 1)
+            Dim DynamicRows()
             """.trimIndent()
         )
     }
@@ -44,6 +81,16 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
             """
             serviceItemId = serviceNode.selectSingleNode("service_item_id").text
             customerName = serviceNode.selectSingleNode("customer_name").text
+            encoded = CStr((New VbsJson).Encode(value))
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesBareCallArgumentStartingWithParenthesizedExpression() {
+        assertParses(
+            """
+            Response.Write (record.Fields.Item("Total").Value) / exchangeRate
+            Response.Write (user.Fields.Item("LastName").Value) & " " & firstName
             """.trimIndent()
         )
     }
@@ -71,11 +118,21 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
         )
     }
 
+    fun testParsesFileContainingOnlyComments() {
+        assertParses(
+            """
+            ' first comment
+            ' second comment
+            """.trimIndent()
+        )
+    }
+
     fun testParsesSingleLineIfWithEndIf() {
         assertParses(
             """
             If IsEmpty(qsComplexity) Then Response.Write("selected") End If
             If qsComplexity = -1 Then Response.Write("selected") End If
+            If status = 0 Then Response.Write("SELECTED"):End If
             """.trimIndent()
         )
     }
@@ -101,6 +158,67 @@ class VbScriptRegressionParsingTest : BasePlatformTestCase() {
             """
             If rowCount = -1 Then End If
             Response.Write Now()
+            """.trimIndent()
+        )
+    }
+
+    fun testDistinguishesNestedBlockAndSingleLineIfStatements() {
+        assertParses(
+            """
+            If outerCondition Then
+                If inlineCondition Then inlineValue = 1
+                If nestedCondition Then
+                    nestedValue = 2
+                ElseIf alternateCondition Then alternateValue = 3
+                Else
+                    nestedValue = 4
+                End If
+            Else
+                outerValue = 5
+            End If
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesBlockIfWithTrailingCommentAfterThen() {
+        assertParses(
+            """
+            If condition Then ' branch explanation
+                value = 1
+            End If
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesEmptyNestedBlockIfSeparatedByBlankLines() {
+        assertParses(
+            """
+            If outerCondition Then
+                If innerCondition Then
+
+                End If
+            End If
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesSelectCaseAfterBlankLinesAndComments() {
+        assertParses(
+            """
+            Select Case regionId
+
+                ' Case 0 is intentionally disabled
+                ' disabledValue = 0
+                Case 3
+                    selectedValue = 3
+                Case Else
+                    selectedValue = -1
+            End Select
+
+            Select Case fallback
+                Case Else
+                    selectedValue = 1
+            End Select
             """.trimIndent()
         )
     }
