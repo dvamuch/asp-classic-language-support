@@ -1,5 +1,6 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
+import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
@@ -201,6 +202,42 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertContainsElements(completionVariants(), "Count", "Item")
     }
 
+    fun testShowsDocumentedMethodSignaturesInCompletion() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            cmd.<caret>
+            """.trimIndent()
+        )
+        assertEquals(
+            " ([Name As String], [Type As DataTypeEnum], [Direction As ParameterDirectionEnum], " +
+                "[Size As Long], [Value As Variant])",
+            completionTailText("CreateParameter")
+        )
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set cmd = Server.CreateObject("ADODB.Command")
+            cmd.Parameters.<caret>
+            """.trimIndent()
+        )
+        assertEquals(" (Object As Parameter)", completionTailText("Append"))
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set fso = CreateObject("Scripting.FileSystemObject")
+            fso.<caret>
+            """.trimIndent()
+        )
+        assertEquals(
+            " (FileName As String, [IOMode As IOMode], [Create As Boolean], [Format As Tristate])",
+            completionTailText("OpenTextFile")
+        )
+    }
+
     fun testCompletesAdoRecordsetMembersInsideAsp() {
         myFixture.configureByText(
             AspFileType,
@@ -345,6 +382,14 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
 
     private fun completionVariants(): List<String> {
         return myFixture.completeBasic()?.map { it.lookupString }.orEmpty()
+    }
+
+    private fun completionTailText(name: String): String? {
+        val element = myFixture.completeBasic().orEmpty().firstOrNull { it.lookupString == name }
+        assertNotNull("Completion item '$name' should be available", element)
+        val presentation = LookupElementPresentation()
+        element!!.renderElement(presentation)
+        return presentation.tailText
     }
 
     private fun completionVariantsAt(file: PsiFile, marker: String): List<String> {

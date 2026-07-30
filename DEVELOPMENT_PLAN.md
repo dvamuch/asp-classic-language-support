@@ -276,6 +276,10 @@ End If
 - последовательный вывод типа для цепочек документированных членов, например
   `cmd.Parameters.Append`, `rs.Fields.Item(0).Value` и
   `document.documentElement.selectSingleNode`;
+- структурированные сигнатуры наиболее используемых методов ADO, Scripting
+  Runtime, MSXML, WinHTTP и RegExp; completion показывает имена, типы и
+  optional-параметры, например
+  `CreateParameter([Name As String], [Type As DataTypeEnum], ...)`;
 - ограниченный каталог популярных объектов с официальной документацией:
   - ADO: `Connection`, `Command`, `Recordset`, `Stream`, `Parameter`, `Field`
     и основные коллекции;
@@ -293,6 +297,9 @@ End If
 - type inference для объектов, присвоенных в include-файле и используемых в
   подключающем ASP-файле;
 - типизированный member completion для пользовательских классов и объектов;
+- полноценный `ParameterInfoHandler`: popup сигнатуры внутри аргументов,
+  подсветка текущего параметра и вызов через стандартное действие Parameter
+  Info (`⌘P` на macOS);
 - контекстное ранжирование и insert handlers для конструкций с параметрами;
 - применение настройки регистра ключевых слов при вставке completion;
 - при появлении stub index — completion проектных символов вне include-графа.

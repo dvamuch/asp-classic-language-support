@@ -64,7 +64,7 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
             VbObjectTypeResolver.resolve(memberPath, position)?.let { objectType ->
                 objectType.members.forEach { member ->
                     result.addElement(
-                        lookup(member.name, "${objectType.displayName} ${member.kind.label}")
+                        objectMemberLookup(member, objectType)
                     )
                 }
             }
@@ -262,6 +262,14 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
     private fun lookup(name: String, typeText: String) = LookupElementBuilder.create(name)
         .withCaseSensitivity(false)
         .withTypeText(typeText, true)
+
+    private fun objectMemberLookup(member: VbObjectMember, objectType: VbObjectType): LookupElementBuilder {
+        var lookup = lookup(member.name, "${objectType.displayName} ${member.kind.label}")
+        member.signatureText()?.let { signature ->
+            lookup = lookup.withTailText(" $signature", true)
+        }
+        return lookup
+    }
 }
 
 private val keywords = listOf(

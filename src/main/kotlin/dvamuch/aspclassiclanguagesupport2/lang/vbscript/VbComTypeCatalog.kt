@@ -8,11 +8,27 @@ internal enum class VbObjectMemberKind(val label: String) {
     COLLECTION("collection")
 }
 
+internal data class VbObjectParameter(
+    val name: String,
+    val typeText: String? = null,
+    val optional: Boolean = false
+) {
+    fun presentation(): String {
+        val value = if (typeText == null) name else "$name As $typeText"
+        return if (optional) "[$value]" else value
+    }
+}
+
 internal data class VbObjectMember(
     val name: String,
     val kind: VbObjectMemberKind,
-    val returnType: String? = null
-)
+    val returnType: String? = null,
+    val parameters: List<VbObjectParameter>? = null
+) {
+    fun signatureText(): String? {
+        return parameters?.joinToString(prefix = "(", postfix = ")") { it.presentation() }
+    }
+}
 
 internal data class VbObjectType(
     val id: String,
@@ -50,6 +66,24 @@ internal object VbComTypeCatalog {
                 "Open" to null,
                 "OpenSchema" to "ado.recordset",
                 "RollbackTrans" to null
+            ),
+            methodParameters = mapOf(
+                "Execute" to listOf(
+                    required("CommandText", "String"),
+                    optional("RecordsAffected", "Long"),
+                    optional("Options", "Long")
+                ),
+                "Open" to listOf(
+                    optional("ConnectionString", "String"),
+                    optional("UserID", "String"),
+                    optional("Password", "String"),
+                    optional("Options", "Long")
+                ),
+                "OpenSchema" to listOf(
+                    required("QueryType", "SchemaEnum"),
+                    optional("Criteria", "Variant"),
+                    optional("SchemaID", "String")
+                )
             )
         ),
         objectType(
@@ -65,6 +99,20 @@ internal object VbComTypeCatalog {
                 "Cancel" to null,
                 "CreateParameter" to "ado.parameter",
                 "Execute" to "ado.recordset"
+            ),
+            methodParameters = mapOf(
+                "CreateParameter" to listOf(
+                    optional("Name", "String"),
+                    optional("Type", "DataTypeEnum"),
+                    optional("Direction", "ParameterDirectionEnum"),
+                    optional("Size", "Long"),
+                    optional("Value", "Variant")
+                ),
+                "Execute" to listOf(
+                    optional("RecordsAffected", "Long"),
+                    optional("Parameters", "Variant"),
+                    optional("Options", "Long")
+                )
             )
         ),
         objectType(
@@ -105,6 +153,48 @@ internal object VbComTypeCatalog {
                 "Supports" to null,
                 "Update" to null,
                 "UpdateBatch" to null
+            ),
+            methodParameters = mapOf(
+                "AddNew" to listOf(optional("FieldList", "Variant"), optional("Values", "Variant")),
+                "Delete" to listOf(optional("AffectRecords", "AffectEnum")),
+                "Find" to listOf(
+                    required("Criteria", "String"),
+                    optional("SkipRecords", "Long"),
+                    optional("SearchDirection", "SearchDirectionEnum"),
+                    optional("Start", "Variant")
+                ),
+                "GetRows" to listOf(
+                    optional("Rows", "Long"),
+                    optional("Start", "Variant"),
+                    optional("Fields", "Variant")
+                ),
+                "GetString" to listOf(
+                    optional("StringFormat", "StringFormatEnum"),
+                    optional("NumRows", "Long"),
+                    optional("ColumnDelimiter", "String"),
+                    optional("RowDelimiter", "String"),
+                    optional("NullExpr", "String")
+                ),
+                "Move" to listOf(required("NumRecords", "Long"), optional("Start", "Variant")),
+                "NextRecordset" to listOf(optional("RecordsAffected", "Long")),
+                "Open" to listOf(
+                    optional("Source", "Variant"),
+                    optional("ActiveConnection", "Variant"),
+                    optional("CursorType", "CursorTypeEnum"),
+                    optional("LockType", "LockTypeEnum"),
+                    optional("Options", "Long")
+                ),
+                "Requery" to listOf(optional("Options", "Long")),
+                "Save" to listOf(
+                    optional("Destination", "Variant"),
+                    optional("PersistFormat", "PersistFormatEnum")
+                ),
+                "Seek" to listOf(
+                    required("KeyValues", "Variant"),
+                    optional("SeekOption", "SeekEnum")
+                ),
+                "Supports" to listOf(required("CursorOptions", "CursorOptionEnum")),
+                "Update" to listOf(optional("Fields", "Variant"), optional("Values", "Variant"))
             )
         ),
         objectType(
@@ -128,6 +218,31 @@ internal object VbComTypeCatalog {
                 "SkipLine" to null,
                 "Write" to null,
                 "WriteText" to null
+            ),
+            methodParameters = mapOf(
+                "CopyTo" to listOf(
+                    required("Dest", "Stream"),
+                    optional("CharNumber", "Long")
+                ),
+                "LoadFromFile" to listOf(required("FileName", "String")),
+                "Open" to listOf(
+                    optional("Source", "Variant"),
+                    optional("Mode", "ConnectModeEnum"),
+                    optional("OpenOptions", "StreamOpenOptionsEnum"),
+                    optional("UserName", "String"),
+                    optional("Password", "String")
+                ),
+                "Read" to listOf(optional("NumBytes", "Long")),
+                "ReadText" to listOf(optional("NumChars", "Long")),
+                "SaveToFile" to listOf(
+                    required("FileName", "String"),
+                    optional("SaveOptions", "SaveOptionsEnum")
+                ),
+                "Write" to listOf(required("Buffer", "Variant")),
+                "WriteText" to listOf(
+                    required("Data", "String"),
+                    optional("Options", "StreamWriteEnum")
+                )
             )
         ),
         objectType(
@@ -137,14 +252,19 @@ internal object VbComTypeCatalog {
                 "Attributes", "Direction", "Name", "NumericScale", "Precision", "Size", "Type", "Value"
             ),
             collections = mapOf("Properties" to null),
-            methods = mapOf("AppendChunk" to null)
+            methods = mapOf("AppendChunk" to null),
+            methodParameters = mapOf("AppendChunk" to listOf(required("Value", "Variant")))
         ),
         objectType(
             id = "ado.parameters",
             displayName = "ADO Parameters",
             properties = listOf("Count"),
             propertiesWithTypes = mapOf("Item" to "ado.parameter"),
-            methods = mapOf("Append" to null, "Delete" to null, "Refresh" to null)
+            methods = mapOf("Append" to null, "Delete" to null, "Refresh" to null),
+            methodParameters = mapOf(
+                "Append" to listOf(required("Object", "Parameter")),
+                "Delete" to listOf(required("Index", "Variant"))
+            )
         ),
         objectType(
             id = "ado.field",
@@ -154,7 +274,11 @@ internal object VbComTypeCatalog {
                 "OriginalValue", "Precision", "Status", "Type", "UnderlyingValue", "Value"
             ),
             collections = mapOf("Properties" to null),
-            methods = mapOf("AppendChunk" to null, "GetChunk" to null)
+            methods = mapOf("AppendChunk" to null, "GetChunk" to null),
+            methodParameters = mapOf(
+                "AppendChunk" to listOf(required("Data", "Variant")),
+                "GetChunk" to listOf(required("Length", "Long"))
+            )
         ),
         objectType(
             id = "ado.fields",
@@ -196,6 +320,11 @@ internal object VbComTypeCatalog {
                 "Keys" to null,
                 "Remove" to null,
                 "RemoveAll" to null
+            ),
+            methodParameters = mapOf(
+                "Add" to listOf(required("Key", "Variant"), required("Item", "Variant")),
+                "Exists" to listOf(required("Key", "Variant")),
+                "Remove" to listOf(required("Key", "Variant"))
             )
         ),
         objectType(
@@ -228,6 +357,48 @@ internal object VbComTypeCatalog {
                 "MoveFile" to null,
                 "MoveFolder" to null,
                 "OpenTextFile" to "scripting.textstream"
+            ),
+            methodParameters = mapOf(
+                "BuildPath" to listOf(required("Path", "String"), required("Name", "String")),
+                "CopyFile" to listOf(
+                    required("Source", "String"),
+                    required("Destination", "String"),
+                    optional("Overwrite", "Boolean")
+                ),
+                "CopyFolder" to listOf(
+                    required("Source", "String"),
+                    required("Destination", "String"),
+                    optional("Overwrite", "Boolean")
+                ),
+                "CreateFolder" to listOf(required("FolderSpec", "String")),
+                "CreateTextFile" to listOf(
+                    required("FileName", "String"),
+                    optional("Overwrite", "Boolean"),
+                    optional("Unicode", "Boolean")
+                ),
+                "DeleteFile" to listOf(required("FileSpec", "String"), optional("Force", "Boolean")),
+                "DeleteFolder" to listOf(required("FolderSpec", "String"), optional("Force", "Boolean")),
+                "DriveExists" to listOf(required("DriveSpec", "String")),
+                "FileExists" to listOf(required("FileSpec", "String")),
+                "FolderExists" to listOf(required("FolderSpec", "String")),
+                "GetAbsolutePathName" to listOf(required("PathSpec", "String")),
+                "GetBaseName" to listOf(required("Path", "String")),
+                "GetDrive" to listOf(required("DriveSpec", "String")),
+                "GetDriveName" to listOf(required("Path", "String")),
+                "GetExtensionName" to listOf(required("Path", "String")),
+                "GetFile" to listOf(required("FileSpec", "String")),
+                "GetFileName" to listOf(required("PathSpec", "String")),
+                "GetFolder" to listOf(required("FolderSpec", "String")),
+                "GetParentFolderName" to listOf(required("Path", "String")),
+                "GetSpecialFolder" to listOf(required("FolderSpec", "SpecialFolderConst")),
+                "MoveFile" to listOf(required("Source", "String"), required("Destination", "String")),
+                "MoveFolder" to listOf(required("Source", "String"), required("Destination", "String")),
+                "OpenTextFile" to listOf(
+                    required("FileName", "String"),
+                    optional("IOMode", "IOMode"),
+                    optional("Create", "Boolean"),
+                    optional("Format", "Tristate")
+                )
             )
         ),
         objectType(
@@ -244,6 +415,13 @@ internal object VbComTypeCatalog {
                 "Write" to null,
                 "WriteBlankLines" to null,
                 "WriteLine" to null
+            ),
+            methodParameters = mapOf(
+                "Read" to listOf(required("Characters", "Long")),
+                "Skip" to listOf(required("Characters", "Long")),
+                "Write" to listOf(required("String", "String")),
+                "WriteBlankLines" to listOf(required("Lines", "Long")),
+                "WriteLine" to listOf(optional("String", "String"))
             )
         ),
         objectType(
@@ -258,6 +436,15 @@ internal object VbComTypeCatalog {
                 "Delete" to null,
                 "Move" to null,
                 "OpenAsTextStream" to "scripting.textstream"
+            ),
+            methodParameters = mapOf(
+                "Copy" to listOf(required("Destination", "String"), optional("Overwrite", "Boolean")),
+                "Delete" to listOf(optional("Force", "Boolean")),
+                "Move" to listOf(required("Destination", "String")),
+                "OpenAsTextStream" to listOf(
+                    optional("IOMode", "IOMode"),
+                    optional("Format", "Tristate")
+                )
             )
         ),
         objectType(
@@ -273,6 +460,16 @@ internal object VbComTypeCatalog {
                 "CreateTextFile" to "scripting.textstream",
                 "Delete" to null,
                 "Move" to null
+            ),
+            methodParameters = mapOf(
+                "Copy" to listOf(required("Destination", "String"), optional("Overwrite", "Boolean")),
+                "CreateTextFile" to listOf(
+                    required("FileName", "String"),
+                    optional("Overwrite", "Boolean"),
+                    optional("Unicode", "Boolean")
+                ),
+                "Delete" to listOf(optional("Force", "Boolean")),
+                "Move" to listOf(required("Destination", "String"))
             )
         ),
         objectType(
@@ -316,6 +513,31 @@ internal object VbComTypeCatalog {
                 "selectSingleNode" to "msxml.node",
                 "transformNode" to null,
                 "validate" to "msxml.parseerror"
+            ),
+            methodParameters = mapOf(
+                "appendChild" to listOf(required("NewChild", "IXMLDOMNode")),
+                "cloneNode" to listOf(required("Deep", "Boolean")),
+                "createAttribute" to listOf(required("Name", "String")),
+                "createCDATASection" to listOf(required("Data", "String")),
+                "createComment" to listOf(required("Data", "String")),
+                "createElement" to listOf(required("TagName", "String")),
+                "createNode" to listOf(
+                    required("Type", "Variant"),
+                    required("Name", "String"),
+                    required("NamespaceURI", "String")
+                ),
+                "createProcessingInstruction" to listOf(
+                    required("Target", "String"),
+                    required("Data", "String")
+                ),
+                "createTextNode" to listOf(required("Data", "String")),
+                "getElementsByTagName" to listOf(required("TagName", "String")),
+                "load" to listOf(required("XMLSource", "Variant")),
+                "loadXML" to listOf(required("XML", "String")),
+                "save" to listOf(required("Destination", "Variant")),
+                "selectNodes" to listOf(required("QueryString", "String")),
+                "selectSingleNode" to listOf(required("QueryString", "String")),
+                "transformNode" to listOf(required("Stylesheet", "IXMLDOMNode"))
             )
         ),
         objectType(
@@ -342,6 +564,22 @@ internal object VbComTypeCatalog {
                 "selectNodes" to "msxml.nodelist",
                 "selectSingleNode" to "msxml.node",
                 "transformNode" to null
+            ),
+            methodParameters = mapOf(
+                "appendChild" to listOf(required("NewChild", "IXMLDOMNode")),
+                "cloneNode" to listOf(required("Deep", "Boolean")),
+                "insertBefore" to listOf(
+                    required("NewChild", "IXMLDOMNode"),
+                    required("RefChild", "Variant")
+                ),
+                "removeChild" to listOf(required("ChildNode", "IXMLDOMNode")),
+                "replaceChild" to listOf(
+                    required("NewChild", "IXMLDOMNode"),
+                    required("OldChild", "IXMLDOMNode")
+                ),
+                "selectNodes" to listOf(required("QueryString", "String")),
+                "selectSingleNode" to listOf(required("QueryString", "String")),
+                "transformNode" to listOf(required("Stylesheet", "IXMLDOMNode"))
             )
         ),
         objectType(
@@ -379,6 +617,42 @@ internal object VbComTypeCatalog {
                 "setRequestHeader" to null,
                 "setTimeouts" to null,
                 "waitForResponse" to null
+            ),
+            methodParameters = mapOf(
+                "getOption" to listOf(required("Option", "ServerXMLHTTPOptionEnum")),
+                "getResponseHeader" to listOf(required("Header", "String")),
+                "open" to listOf(
+                    required("Method", "String"),
+                    required("URL", "String"),
+                    optional("Async", "Boolean"),
+                    optional("User", "String"),
+                    optional("Password", "String")
+                ),
+                "send" to listOf(optional("Body", "Variant")),
+                "setOption" to listOf(
+                    required("Option", "ServerXMLHTTPOptionEnum"),
+                    required("Value", "Variant")
+                ),
+                "setProxy" to listOf(
+                    required("ProxySetting", "SXH_PROXY_SETTING"),
+                    optional("ProxyServer", "Variant"),
+                    optional("BypassList", "Variant")
+                ),
+                "setProxyCredentials" to listOf(
+                    required("UserName", "String"),
+                    required("Password", "String")
+                ),
+                "setRequestHeader" to listOf(
+                    required("Header", "String"),
+                    required("Value", "String")
+                ),
+                "setTimeouts" to listOf(
+                    required("ResolveTimeout", "Long"),
+                    required("ConnectTimeout", "Long"),
+                    required("SendTimeout", "Long"),
+                    required("ReceiveTimeout", "Long")
+                ),
+                "waitForResponse" to listOf(optional("TimeoutInSeconds", "Variant"))
             )
         ),
         objectType(
@@ -401,6 +675,38 @@ internal object VbComTypeCatalog {
                 "SetRequestHeader" to null,
                 "SetTimeouts" to null,
                 "WaitForResponse" to null
+            ),
+            methodParameters = mapOf(
+                "GetResponseHeader" to listOf(required("Header", "String")),
+                "Open" to listOf(
+                    required("Method", "String"),
+                    required("URL", "String"),
+                    optional("Async", "Boolean")
+                ),
+                "Send" to listOf(optional("Body", "Variant")),
+                "SetAutoLogonPolicy" to listOf(required("Policy", "AutoLogonPolicy")),
+                "SetClientCertificate" to listOf(required("ClientCertificate", "String")),
+                "SetCredentials" to listOf(
+                    required("UserName", "String"),
+                    required("Password", "String"),
+                    required("Flags", "HTTPREQUEST_SETCREDENTIALS_FLAGS")
+                ),
+                "SetProxy" to listOf(
+                    required("ProxySetting", "HTTPREQUEST_PROXY_SETTING"),
+                    optional("ProxyServer", "Variant"),
+                    optional("BypassList", "Variant")
+                ),
+                "SetRequestHeader" to listOf(
+                    required("Header", "String"),
+                    required("Value", "String")
+                ),
+                "SetTimeouts" to listOf(
+                    required("ResolveTimeout", "Long"),
+                    required("ConnectTimeout", "Long"),
+                    required("SendTimeout", "Long"),
+                    required("ReceiveTimeout", "Long")
+                ),
+                "WaitForResponse" to listOf(optional("Timeout", "Variant"))
             )
         ),
         objectType(
@@ -412,6 +718,14 @@ internal object VbComTypeCatalog {
                 "Execute" to "vbscript.matches",
                 "Replace" to null,
                 "Test" to null
+            ),
+            methodParameters = mapOf(
+                "Execute" to listOf(required("SourceString", "String")),
+                "Replace" to listOf(
+                    required("SourceString", "String"),
+                    required("ReplaceString", "String")
+                ),
+                "Test" to listOf(required("SourceString", "String"))
             )
         ),
         objectType(
@@ -450,7 +764,8 @@ private fun objectType(
     properties: List<String> = emptyList(),
     propertiesWithTypes: Map<String, String?> = emptyMap(),
     collections: Map<String, String?> = emptyMap(),
-    methods: Map<String, String?> = emptyMap()
+    methods: Map<String, String?> = emptyMap(),
+    methodParameters: Map<String, List<VbObjectParameter>> = emptyMap()
 ): VbObjectType {
     val members = buildList {
         properties.forEach { add(VbObjectMember(it, VbObjectMemberKind.PROPERTY)) }
@@ -461,8 +776,14 @@ private fun objectType(
             add(VbObjectMember(name, VbObjectMemberKind.COLLECTION, returnType))
         }
         methods.forEach { (name, returnType) ->
-            add(VbObjectMember(name, VbObjectMemberKind.METHOD, returnType))
+            add(VbObjectMember(name, VbObjectMemberKind.METHOD, returnType, methodParameters[name]))
         }
     }.sortedBy { it.name.lowercase(Locale.ROOT) }
     return VbObjectType(id, displayName, aliases, members)
 }
+
+private fun required(name: String, typeText: String? = null) =
+    VbObjectParameter(name, typeText, optional = false)
+
+private fun optional(name: String, typeText: String? = null) =
+    VbObjectParameter(name, typeText, optional = true)
