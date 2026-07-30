@@ -28,9 +28,9 @@ internal object VbIncludeSymbolResolver {
         return null
     }
 
-    private fun includedVbScriptFiles(usage: VbId): List<PsiFile> {
-        val manager = InjectedLanguageManager.getInstance(usage.project)
-        val topLevelFile = manager.getTopLevelFile(usage)
+    internal fun includedVbScriptFiles(context: PsiElement): List<PsiFile> {
+        val manager = InjectedLanguageManager.getInstance(context.project)
+        val topLevelFile = manager.getTopLevelFile(context).originalFile
         val sourceAspFile = VbAspPsiUtil.aspPsi(topLevelFile) ?: return emptyList()
         return CachedValuesManager.getCachedValue(sourceAspFile) {
             CachedValueProvider.Result.create(
@@ -55,5 +55,5 @@ internal object VbIncludeSymbolResolver {
         visit(sourceAspFile)
         return result
     }
-    private fun fileKey(file: PsiFile): String = file.virtualFile.url
+    private fun fileKey(file: PsiFile): String = file.viewProvider.virtualFile.url
 }
