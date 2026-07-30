@@ -7,6 +7,17 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
+    fun testParsesCommentOnlyScriptlet() {
+        assertInjectedParses(
+            """
+            <%
+            ' first comment
+            ' second comment
+            %>
+            """.trimIndent()
+        )
+    }
+
     fun testParsesForNextWithInlineAttributeIf() {
         assertInjectedParses(
             """
@@ -19,6 +30,25 @@ class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
             <%
             Next
             %>
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesBlockIfAndElseIfAcrossAspScriptlets() {
+        assertInjectedParses(
+            """
+            <% If outerCondition Then %>
+              <div>
+                <% If inlineCondition Then Response.Write("inline") %>
+                <% If nestedCondition Then %>
+                  <span>nested</span>
+                <% ElseIf alternateCondition Then alternateValue = 1 %>
+                  <span>alternate</span>
+                <% Else %>
+                  <span>fallback</span>
+                <% End If %>
+              </div>
+            <% End If %>
             """.trimIndent()
         )
     }

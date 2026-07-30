@@ -12,7 +12,7 @@
 
 vbFile ::= statement_list?
 
-statement_list ::= stmt_separator* statement (stmt_separator* statement)* stmt_separator*
+statement_list ::= (stmt_separator | statement)+
 stmt_separator ::= EOL | COLON
 
 statement ::=
@@ -43,45 +43,48 @@ statement ::=
 
 option_stmt ::= OPTION EXPLICIT
 
-visibility_stmt ::= PUBLIC_KW | PRIVATE_KW
+visibility_stmt ::= (PUBLIC_KW | PRIVATE_KW) DEFAULT? (function_stmt | sub_stmt | property_stmt | visibility_var_decl)
+visibility_var_decl ::= var_decl (COMMA var_decl)*
 
 const_stmt ::= CONST const_decl (COMMA const_decl)*
 const_decl ::= id EQ expr
 
 dim_stmt ::= DIM var_decl (COMMA var_decl)*
-var_decl ::= id (LPAREN (COMMA? expr)? RPAREN)?
+var_decl ::= id (LPAREN (expr (COMMA expr)*)? RPAREN)?
 
-class_stmt ::= CLASS id stmt_separator class_body? END CLASS
+class_stmt ::= CLASS id stmt_separator+ class_body? END CLASS
 class_body ::= statement_list
 
-function_stmt ::= FUNCTION id param_list? stmt_separator statement_list? END FUNCTION
-sub_stmt ::= SUB id param_list? stmt_separator statement_list? END SUB
-property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator statement_list? END PROPERTY
+function_stmt ::= FUNCTION id param_list? stmt_separator+ statement_list? END FUNCTION
+sub_stmt ::= SUB id param_list? stmt_separator+ statement_list? END SUB
+property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator+ statement_list? END PROPERTY
 
 param_list ::= LPAREN (param (COMMA param)*)? RPAREN
 param ::= (BYVAL | BYREF)? (OPTIONAL)? id (EQ expr)?
 
 if_stmt ::= if_block_stmt | if_single_line_stmt
-if_block_stmt ::= IF expr THEN if_block_branch? elseif_block* else_block? END IF
-if_single_line_stmt ::= IF expr THEN inline_if_branch? (ELSE inline_if_branch?)? (END IF)?
+if_block_stmt ::= IF expr THEN if_block_start statement_list? elseif_block* else_block? END IF
+private if_block_start ::= COMMENT? EOL stmt_separator*
+if_single_line_stmt ::= IF expr THEN inline_if_branch? (ELSE inline_if_branch?)? (COLON? END IF)?
 inline_if_branch ::= statement (COLON statement)*
-if_block_branch ::= stmt_separator statement_list? | statement_list
+if_block_branch ::= stmt_separator+ statement_list? | statement_list
 elseif_block ::= ELSEIF expr THEN if_block_branch?
 else_block ::= ELSE if_block_branch?
 
-select_stmt ::= SELECT CASE expr stmt_separator? case_block+ case_else_block? END SELECT
-case_block ::= CASE case_expr_list stmt_separator? statement_list?
-case_else_block ::= CASE ELSE stmt_separator? statement_list?
+select_stmt ::= SELECT CASE expr select_case_start case_block* case_else_block? END SELECT
+private select_case_start ::= (stmt_separator | comment_stmt)*
+case_block ::= CASE case_expr_list stmt_separator* statement_list?
+case_else_block ::= CASE ELSE stmt_separator* statement_list?
 case_expr_list ::= case_expr (COMMA case_expr)*
 case_expr ::= expr | (IS rel_op expr)
 
-for_stmt ::= FOR id EQ expr TO expr (STEP expr)? stmt_separator? statement_list? NEXT id?
-foreach_stmt ::= FOR EACH id IN expr stmt_separator? statement_list? NEXT id?
+for_stmt ::= FOR id EQ expr TO expr (STEP expr)? stmt_separator* statement_list? NEXT id?
+foreach_stmt ::= FOR EACH id IN expr stmt_separator* statement_list? NEXT id?
 
-do_stmt ::= DO (WHILE | UNTIL)? expr? stmt_separator? statement_list? LOOP (WHILE | UNTIL)? expr?
-while_stmt ::= WHILE expr stmt_separator? statement_list? WEND
+do_stmt ::= DO (WHILE | UNTIL)? expr? stmt_separator* statement_list? LOOP (WHILE | UNTIL)? expr?
+while_stmt ::= WHILE expr stmt_separator* statement_list? WEND
 
-with_stmt ::= WITH expr stmt_separator? statement_list? END WITH
+with_stmt ::= WITH expr stmt_separator* statement_list? END WITH
 
 exit_stmt ::= EXIT (FUNCTION | SUB | PROPERTY | FOR | DO)
 
@@ -97,11 +100,11 @@ execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
 lvalue ::= postfix_ref_expr | with_member_ref_expr
 
-call_stmt ::= CALL? (qualified_identifier | with_qualified_identifier) (call_args | bare_call_args)?
+call_stmt ::= CALL? (qualified_identifier | with_qualified_identifier) (bare_call_args | call_args)?
 call_args ::= LPAREN call_arg_list? RPAREN
 call_arg_list ::= call_arg (COMMA call_arg)*
 call_arg ::= expr?
-bare_call_args ::= expr (COMMA call_arg)*
+bare_call_args ::= COMMA call_arg (COMMA call_arg)* | expr (COMMA call_arg)*
 
 expr_stmt ::= expr
 
@@ -116,7 +119,9 @@ mult_expr ::= pow_expr ((STAR | SLASH | IDIV | MOD) pow_expr)*
 pow_expr ::= unary_expr (POW unary_expr)*
 unary_expr ::= (PLUS | MINUS) unary_expr | primary_expr
 
-primary_expr ::= literal | postfix_ref_expr | with_member_ref_expr | LPAREN expr RPAREN | NEW qualified_identifier
+primary_expr ::= literal | postfix_ref_expr | with_member_ref_expr | grouped_expr | new_expr
+private grouped_expr ::= LPAREN expr RPAREN postfix_suffix*
+private new_expr ::= NEW qualified_identifier postfix_suffix*
 postfix_ref_expr ::= id postfix_suffix*
 with_member_ref_expr ::= DOT id postfix_suffix*
 postfix_suffix ::= DOT id | call_args
