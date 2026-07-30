@@ -127,6 +127,18 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertContainsElements(variants, "Write", "Redirect", "ContentType")
     }
 
+    fun testAcceptsInjectedAspCompletionWithTab() {
+        myFixture.configureByText(AspFileType, "<% Response.<caret> %>")
+        val variants = myFixture.completeBasic().orEmpty()
+        val write = variants.firstOrNull { it.lookupString == "Write" }
+        assertNotNull("Response.Write completion should be available", write)
+        myFixture.lookup.currentItem = write
+
+        myFixture.type('\t')
+
+        assertEquals("Response.Write", myFixture.editor.document.text.trim())
+    }
+
     fun testCompletionIsCaseInsensitive() {
         myFixture.configureByText(VbScriptFileType, "res<caret>")
 
