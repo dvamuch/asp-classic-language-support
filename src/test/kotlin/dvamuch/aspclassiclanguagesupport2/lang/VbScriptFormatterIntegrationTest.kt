@@ -221,6 +221,37 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testIndentsBodiesOfClassMembersWithAccessModifiers() {
+        assertReformatted(
+            """
+            Class DeviceDal
+            public function getById(deviceId)
+            set result=deviceId
+            end function
+            private sub reset()
+            value=0
+            end sub
+            public default property get Item(index)
+            Item=index
+            end property
+            End Class
+            """.trimIndent(),
+            """
+            Class DeviceDal
+                public function getById(deviceId)
+                    set result = deviceId
+                end function
+                private sub reset()
+                    value = 0
+                end sub
+                public default property get Item(index)
+                    Item = index
+                end property
+            End Class
+            """.trimIndent()
+        )
+    }
+
     private fun assertReformatted(before: String, after: String) {
         val file = myFixture.configureByText(VbScriptFileType, before)
         reformat(file)

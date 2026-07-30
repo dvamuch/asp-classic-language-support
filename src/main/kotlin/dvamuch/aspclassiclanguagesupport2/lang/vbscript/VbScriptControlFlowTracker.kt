@@ -48,6 +48,7 @@ internal class VbScriptControlFlowTracker {
         if (Regex("^if\\b.*\\bthen\\s*$", RegexOption.IGNORE_CASE).matches(line) &&
             !lower.startsWith("elseif") && !lower.startsWith("else if")
         ) return BlockKind.IF
+        val declaration = lower.replaceFirst(MEMBER_MODIFIERS, "")
         return when {
             lower.startsWith("select case ") -> BlockKind.SELECT
             lower.startsWith("for ") -> BlockKind.FOR
@@ -55,9 +56,9 @@ internal class VbScriptControlFlowTracker {
             lower.startsWith("while ") -> BlockKind.WHILE
             lower.startsWith("with ") -> BlockKind.WITH
             lower.startsWith("class ") -> BlockKind.CLASS
-            lower.startsWith("sub ") -> BlockKind.SUB
-            lower.startsWith("function ") -> BlockKind.FUNCTION
-            Regex("^property\\s+(get|let|set)\\b.*", RegexOption.IGNORE_CASE).matches(line) -> BlockKind.PROPERTY
+            declaration.startsWith("sub ") -> BlockKind.SUB
+            declaration.startsWith("function ") -> BlockKind.FUNCTION
+            PROPERTY_DECLARATION.matches(declaration) -> BlockKind.PROPERTY
             else -> null
         }
     }
@@ -113,5 +114,10 @@ internal class VbScriptControlFlowTracker {
         SUB,
         FUNCTION,
         PROPERTY
+    }
+
+    private companion object {
+        val MEMBER_MODIFIERS = Regex("^(?:(?:public|private|default)\\s+)+")
+        val PROPERTY_DECLARATION = Regex("^property\\s+(get|let|set)\\b.*")
     }
 }

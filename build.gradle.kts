@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "v0.0.2"
+version = "v0.0.3"
 
 repositories {
     mavenCentral()
@@ -35,7 +35,7 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Initial version
+            Stable mixed ASP/HTML formatting with VBScript control-flow indentation.
         """.trimIndent()
     }
 }
