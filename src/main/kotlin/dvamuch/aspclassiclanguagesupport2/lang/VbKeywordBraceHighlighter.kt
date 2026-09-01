@@ -16,28 +16,45 @@ class VbKeywordBraceHighlighter : HeavyBraceHighlighter() {
     }
 
     override fun matchBrace(file: PsiFile, offset: Int): Pair<TextRange, TextRange>? {
-        if (file.language == VbScriptLanguage) return matchVbScript(file, offset)
+        if (file.language == VbScriptLanguage) {
+            val manager = InjectedLanguageManager.getInstance(file.project)
+            if (manager.isInjectedFragment(file)) {
+                val topLevel = manager.getTopLevelFile(file)
+                if (topLevel.viewProvider is AspFileViewProvider) {
+                    val hostPair = matchAsp(topLevel, offset) ?: return null
+                    val window = PsiDocumentManager.getInstance(file.project).getDocument(file) as? DocumentWindow
+                        ?: return null
+                    val first = hostRangeToInjected(window, hostPair.first) ?: return null
+                    val second = hostRangeToInjected(window, hostPair.second) ?: return null
+                    return Pair.create(first, second)
+                }
+            }
+            return matchVbScript(file, offset)
+        }
         if (file.viewProvider !is AspFileViewProvider) return null
 
-        val manager = InjectedLanguageManager.getInstance(file.project)
-        val injectedContext = sequenceOf(offset, offset - 1)
-            .filter { candidate -> candidate >= 0 && candidate < file.textLength }
-            .mapNotNull { candidate ->
-                manager.findInjectedElementAt(file, candidate)?.let { element -> candidate to element }
-            }
-            .firstOrNull { (_, element) -> element.containingFile.language == VbScriptLanguage }
-            ?: return null
-        val (hostOffset, injectedElement) = injectedContext
-        val injectedFile = injectedElement.containingFile
-        val injectedDocument = PsiDocumentManager.getInstance(file.project).getDocument(injectedFile) as? DocumentWindow
-            ?: return null
-        val injectedOffset = injectedDocument.hostToInjected(hostOffset)
-        if (injectedOffset < 0) return null
+        return matchAsp(file, offset)
+    }
 
-        val pair = VbKeywordPairMatcher.match(injectedFile, injectedOffset) ?: return null
+    private fun hostRangeToInjected(window: DocumentWindow, range: TextRange): TextRange? {
+        val start = window.hostToInjected(range.startOffset)
+        val end = window.hostToInjected(range.endOffset - 1)
+        if (start < 0 || end < 0) return null
+        return TextRange(start, end + 1)
+    }
+
+    private fun matchAsp(file: PsiFile, offset: Int): Pair<TextRange, TextRange>? {
+        val aspFile = file.viewProvider.getPsi(AspLanguage) ?: return null
+        val context = AspVbScriptContext.getForAspFile(aspFile)
+        val analysisOffset = sequenceOf(offset, offset - 1)
+            .filter { candidate -> candidate >= 0 && candidate < file.textLength }
+            .mapNotNull(context::hostToAnalysis)
+            .firstOrNull()
+            ?: return null
+        val pair = VbKeywordPairMatcher.match(context.analysisFile, analysisOffset) ?: return null
         return Pair.create(
-            injectedDocument.injectedToHost(pair.first),
-            injectedDocument.injectedToHost(pair.second)
+            context.analysisRangeToHost(pair.first) ?: return null,
+            context.analysisRangeToHost(pair.second) ?: return null
         )
     }
 

@@ -19,6 +19,7 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbNamedElement
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbPropertyStmt
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbSubStmt
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
 import javax.swing.Icon
 
 class VbStructureViewFactory : PsiStructureViewFactory {
@@ -94,6 +95,7 @@ private class VbStructureDeclarationElement(
 }
 
 private fun structureDeclarations(scope: PsiElement): List<VbId> {
+    val analysisContext = (scope as? PsiFile)?.let(AspVbScriptContext::forAnalysisFile)
     return VbFileSymbolTable.get(scope.containingFile).declarations()
         .asSequence()
         .filter { declaration -> declaration.scope === scope }
@@ -105,5 +107,6 @@ private fun structureDeclarations(scope: PsiElement): List<VbId> {
                 id.parent is VbPropertyStmt
         }
         .sortedBy { id -> id.textOffset }
+        .map { id -> analysisContext?.hostIdForAnalysis(id) ?: id }
         .toList()
 }

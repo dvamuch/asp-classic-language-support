@@ -61,6 +61,24 @@ tasks {
     }
 }
 
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("ttsProjectDir").orNull?.let { ttsProjectDir ->
+        systemProperty("tts.project.dir", ttsProjectDir)
+        maxHeapSize = "2g"
+        testLogging.events(org.gradle.api.tasks.testing.logging.TestLogEvent.STANDARD_OUT)
+
+        mapOf(
+            "ttsBatchSize" to "tts.batch.size",
+            "ttsBatchIndex" to "tts.batch.index",
+            "ttsPathFilter" to "tts.path.filter"
+        ).forEach { (gradleProperty, systemPropertyName) ->
+            providers.gradleProperty(gradleProperty).orNull?.let { value ->
+                systemProperty(systemPropertyName, value)
+            }
+        }
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)

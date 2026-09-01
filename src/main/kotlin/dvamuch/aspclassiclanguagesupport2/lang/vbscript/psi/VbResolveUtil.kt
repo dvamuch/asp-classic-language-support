@@ -2,10 +2,29 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
 
 object VbResolveUtil {
     fun resolve(id: VbId): PsiElement? {
         val name = (id as? VbNamedElement)?.name ?: return null
+        resolveInFile(id, name)?.let { return it }
+
+        val hostLocation = VbAspPsiUtil.hostLocation(id)
+        val aspContext = AspVbScriptContext.get(id)
+        if (hostLocation != null && aspContext != null) {
+            val analysisId = aspContext.analysisIdAtHostOffset(hostLocation.offset)
+            if (analysisId != null) {
+                val analysisTarget = resolveInFile(analysisId, name)
+                if (analysisTarget is VbId) {
+                    aspContext.hostIdForAnalysis(analysisTarget)?.let { return it }
+                }
+            }
+        }
+
+        return VbIncludeSymbolResolver.resolve(id, name)
+    }
+
+    private fun resolveInFile(id: VbId, name: String): PsiElement? {
         val file = id.containingFile ?: return null
         val visibleScopes = visibleScopes(id)
 
@@ -29,7 +48,7 @@ object VbResolveUtil {
             if (implicitDeclaration != null) return implicitDeclaration.id
         }
 
-        return VbIncludeSymbolResolver.resolve(id, name)
+        return null
     }
 
     fun isReferenceCandidate(id: VbId): Boolean {

@@ -12,6 +12,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbClassStmt
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbConstDecl
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclaration
@@ -112,6 +113,17 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
                     .thenByDescending { it.id.textOffset }
             )
         addDistinct(localDeclarations, seenNames, result)
+
+        val aspDeclarations = AspVbScriptContext.get(position)
+            ?.hostDeclarationIds()
+            .orEmpty()
+            .mapNotNull { id -> dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil.declaration(id) }
+            .filter { declaration -> declaration.scope is PsiFile }
+            .sortedWith(
+                compareBy<VbDeclaration> { if (it.implicit) 1 else 0 }
+                    .thenByDescending { it.id.textOffset }
+            )
+        addDistinct(aspDeclarations, seenNames, result)
 
         for (includedFile in VbIncludeSymbolResolver.includedVbScriptFiles(position)) {
             val declarations = VbFileSymbolTable.get(includedFile).declarations()

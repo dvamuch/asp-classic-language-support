@@ -1,8 +1,6 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiErrorElement
-import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.nio.charset.StandardCharsets
@@ -27,21 +25,8 @@ class AspExternalProjectDiagnosticsTest : BasePlatformTestCase() {
         val root = myFixture.configureByText(AspFileType, text)
         val aspPsi = root.viewProvider.getPsi(AspLanguage) ?: return
 
-        val hosts = PsiTreeUtil.collectElementsOfType(aspPsi, AspOuterPsiElement::class.java)
-        val manager = InjectedLanguageManager.getInstance(project)
-        val injected = linkedSetOf<PsiFile>()
-        hosts.forEach { host ->
-            val start = host.textRange.startOffset
-            val end = host.textRange.endOffset
-            for (offset in listOf(start + 2, start + 3, start + 4)) {
-                if (offset >= end) continue
-                val element = manager.findInjectedElementAt(root, offset) ?: continue
-                element.containingFile?.let { injected.add(it) }
-                break
-            }
-        }
-
-        val errors = injected.flatMap { PsiTreeUtil.collectElementsOfType(it, PsiErrorElement::class.java) }
+        val analysisFile = AspVbScriptContext.getForAspFile(aspPsi).analysisFile
+        val errors = PsiTreeUtil.collectElementsOfType(analysisFile, PsiErrorElement::class.java)
         if (errors.isEmpty()) return
 
         val report = StringBuilder()

@@ -28,6 +28,19 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         )
     }
 
+    fun testInjectionLookupIsLinearAcrossAllScriptlets() {
+        val text = buildLargeSyntheticAsp(repetitions = 750)
+        assertAllScriptletInjectionsAreResponsive("many-scriptlets.asp", text, 20_000)
+    }
+
+    fun testOptionalTtsOrderInfoInjectionPerformance() {
+        val ttsRoot = System.getProperty("tts.project.dir") ?: return
+        val path = Path.of(ttsRoot).resolve("customers/orderinfo.asp")
+        if (!Files.isRegularFile(path)) return
+        val text = Files.readString(path, StandardCharsets.UTF_8)
+        assertAllScriptletInjectionsAreResponsive("orderinfo.asp", text, 30_000)
+    }
+
     fun testOptionalRealWorldAspFixtures() {
         val files = listAspFixtures(AspTestData.realWorldDir())
         if (files.isEmpty()) return
@@ -82,6 +95,32 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
                 id.references.firstOrNull()?.resolve()
             }
         }
+    }
+
+    private fun assertAllScriptletInjectionsAreResponsive(name: String, text: String, limitMs: Long) {
+        val file = myFixture.configureByText(name, text)
+        val aspPsi = file.viewProvider.getPsi(AspLanguage)
+        assertNotNull("ASP PSI should exist in view provider", aspPsi)
+        val hosts = PsiTreeUtil.collectElementsOfType(aspPsi, AspOuterPsiElement::class.java)
+            .filter { aspScriptletInfo(it) != null }
+            .sortedBy { it.textRange.startOffset }
+        assertTrue("Fixture should contain many scriptlets", hosts.size >= 1_000)
+
+        val manager = InjectedLanguageManager.getInstance(project)
+        val injectedFiles = linkedSetOf<PsiFile>()
+        val elapsedMs = measureTimeMillis {
+            hosts.forEach { host ->
+                val info = aspScriptletInfo(host) ?: return@forEach
+                val offset = host.textRange.startOffset + info.range.startOffset
+                val injected = manager.findInjectedElementAt(file, offset)
+                assertNotNull("Expected VBScript injection at host offset $offset", injected)
+                injected?.containingFile?.let(injectedFiles::add)
+            }
+        }
+
+        assertEquals("Each scriptlet must own exactly one lightweight injection", hosts.size, injectedFiles.size)
+        println("ASP injection performance: $name, hosts=${hosts.size}, elapsed=${elapsedMs}ms")
+        assertTrue("All ${hosts.size} injection lookups took ${elapsedMs}ms", elapsedMs < limitMs)
     }
 
     private fun buildLargeSyntheticAsp(repetitions: Int): String = buildString {

@@ -1,7 +1,9 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.ide.highlighter.HtmlFileType
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -218,6 +220,61 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         val onceFormatted = file.text
         reformat(file)
         assertEquals("Formatting a DAL class twice should be stable", onceFormatted, file.text)
+    }
+
+    fun testPreservesLargeLeadingScriptletWithManyInlineHosts() {
+        val source = buildString {
+            appendLine("<%")
+            appendLine("Set rsViewers = Server.CreateObject(\"ADODB.Recordset\")")
+            appendLine(
+                "rsViewers.Source = \"SELECT DISTINCT BV.UserID FROM dbo.BugViewers BV " +
+                    "WHERE BV.UserID = 42 ORDER BY BV.UserID\""
+            )
+            repeat(300) { index ->
+                appendLine("viewerValue$index=viewerValue$index+1")
+            }
+            appendLine("rsViewers.Open()")
+            appendLine("rsViewers.Close()")
+            appendLine("Set rsViewers = Nothing")
+            appendLine("%>")
+            appendLine("<html><body><select>")
+            repeat(160) { index ->
+                appendLine(
+                    "<option value=\"$index\" <% If selectedViewer = $index Then " +
+                        "Response.Write \" selected\" %>>Viewer $index</option>"
+                )
+            }
+            append("</select></body></html>")
+        }
+        val file = myFixture.configureByText("large-index.asp", source)
+        val originalSkeleton = source.filterNot(Char::isWhitespace)
+
+        reformat(file)
+
+        assertEquals(
+            "Formatting must not move or remove code between ASP hosts",
+            originalSkeleton,
+            file.text.filterNot(Char::isWhitespace)
+        )
+        assertTrue(file.text.indexOf("rsViewers.Source") < file.text.indexOf("rsViewers.Open"))
+        assertTrue(file.text.indexOf("rsViewers.Open") < file.text.indexOf("Set rsViewers = Nothing"))
+        assertEquals(160, Regex("selectedViewer").findAll(file.text).count())
+
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Formatting a large mixed ASP file twice should be stable", onceFormatted, file.text)
+    }
+
+    fun testEditorReformatActionFormatsVbScriptContent() {
+        val file = myFixture.configureByText(
+            "editor-action.asp",
+            "<%\nvalue=value+1\n%>"
+        )
+
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals("<%\nvalue = value + 1\n%>", file.text)
     }
 
     private fun assertReformatted(before: String, after: String) {
