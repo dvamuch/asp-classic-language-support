@@ -25,7 +25,7 @@ class AspSyntaxHighlighter : SyntaxHighlighter {
 
     private companion object {
         val SCRIPTLET_DELIMITER_KEYS = arrayOf(
-            TextAttributesKey.find("PHP_TAG") ?: DefaultLanguageHighlighterColors.MARKUP_TAG
+            TextAttributesKey.createTextAttributesKey("PHP_TAG", DefaultLanguageHighlighterColors.KEYWORD)
         )
     }
 }
