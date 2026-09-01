@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "v0.0.3"
+version = "v0.0.4"
 
 repositories {
     mavenCentral()
@@ -35,7 +35,7 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Stable mixed ASP/HTML formatting with VBScript control-flow indentation.
+            Native file-wide ASP/VBScript PSI with fast large-file analysis and cross-template control flow.
         """.trimIndent()
     }
 }

@@ -12,8 +12,9 @@
 
 vbFile ::= statement_list?
 
-statement_list ::= (stmt_separator | statement)+
+statement_list ::= (stmt_separator | template_gap | statement)+
 stmt_separator ::= EOL | COLON
+private template_gap ::= ASP_OPEN | ASP_CLOSE | ASP_TEMPLATE_DATA | ASP_CONTROL
 
 statement ::=
     option_stmt
@@ -37,6 +38,7 @@ statement ::=
   | redim_stmt
   | erase_stmt
   | execute_stmt
+  | asp_output_stmt
   | assignment_stmt
   | call_stmt
   | expr_stmt
@@ -55,16 +57,18 @@ var_decl ::= id (LPAREN (expr (COMMA expr)*)? RPAREN)?
 class_stmt ::= CLASS id stmt_separator+ class_body? END CLASS
 class_body ::= statement_list
 
-function_stmt ::= FUNCTION id param_list? stmt_separator+ statement_list? END FUNCTION
-sub_stmt ::= SUB id param_list? stmt_separator+ statement_list? END SUB
-property_stmt ::= PROPERTY (GET | LET | SET) id param_list? stmt_separator+ statement_list? END PROPERTY
+function_stmt ::= FUNCTION id param_list? declaration_block_start+ statement_list? END FUNCTION
+sub_stmt ::= SUB id param_list? declaration_block_start+ statement_list? END SUB
+property_stmt ::= PROPERTY (GET | LET | SET) id param_list? declaration_block_start+ statement_list? END PROPERTY
+private declaration_block_start ::= stmt_separator | ASP_CLOSE
 
 param_list ::= LPAREN (param (COMMA param)*)? RPAREN
 param ::= (BYVAL | BYREF)? (OPTIONAL)? id (EQ expr)?
 
 if_stmt ::= if_block_stmt | if_single_line_stmt
 if_block_stmt ::= IF expr THEN if_block_start statement_list? elseif_block* else_block? END IF
-private if_block_start ::= COMMENT? EOL stmt_separator*
+private if_block_start ::= COMMENT? block_start stmt_separator*
+private block_start ::= EOL | ASP_CLOSE
 if_single_line_stmt ::= IF expr THEN inline_if_branch? (ELSE inline_if_branch?)? (COLON? END IF)?
 inline_if_branch ::= statement (COLON statement)*
 if_block_branch ::= stmt_separator+ statement_list? | statement_list
@@ -96,6 +100,8 @@ redim_decl ::= id LPAREN expr (COMMA expr)* RPAREN
 erase_stmt ::= ERASE id (COMMA id)*
 
 execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
+
+asp_output_stmt ::= ASP_EXPR_OPEN expr ASP_CLOSE
 
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
 lvalue ::= postfix_ref_expr | with_member_ref_expr

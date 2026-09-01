@@ -12,10 +12,12 @@ import com.intellij.psi.tree.IElementType
 class AspSyntaxHighlighter : SyntaxHighlighter {
     override fun getHighlightingLexer(): Lexer = AspLexer()
 
+    private val vbHighlighter = dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighter()
+
     override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> {
         return when (tokenType) {
-            AspTokenTypes.OUTER -> arrayOf(DefaultLanguageHighlighterColors.TEMPLATE_LANGUAGE_COLOR)
-            else -> emptyArray()
+            AspTokenTypes.TEMPLATE_DATA -> arrayOf(DefaultLanguageHighlighterColors.TEMPLATE_LANGUAGE_COLOR)
+            else -> vbHighlighter.getTokenHighlights(tokenType)
         }
     }
 }

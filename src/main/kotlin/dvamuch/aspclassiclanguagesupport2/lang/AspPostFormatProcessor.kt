@@ -312,37 +312,34 @@ class AspPostFormatProcessor : PostFormatProcessor {
         lexer.start(text)
         return buildList {
             while (lexer.tokenType != null) {
-                if (lexer.tokenType == AspTokenTypes.OUTER) {
-                    val outerStart = lexer.tokenStart
-                    val outerEnd = lexer.tokenEnd
-                    val outer = text.substring(outerStart, outerEnd)
-                    rawScriptletInfo(outer)?.let { info ->
-                        val contentRange = info.range.shiftRight(outerStart)
-                        add(
-                            Fragment(
-                                outerRange = TextRange(outerStart, outerEnd),
-                                contentRange = contentRange,
-                                originalContent = contentRange.substring(text),
-                                expressionPrefix = info.prefix,
-                                baseIndent = lineIndentBefore(text, outerStart)
-                            )
+                val openingType = lexer.tokenType
+                if (openingType != VbTypes.ASP_OPEN && openingType != VbTypes.ASP_EXPR_OPEN) {
+                    lexer.advance()
+                    continue
+                }
+
+                val outerStart = lexer.tokenStart
+                val contentStart = lexer.tokenEnd
+                lexer.advance()
+                while (lexer.tokenType != null && lexer.tokenType != VbTypes.ASP_CLOSE) lexer.advance()
+                if (lexer.tokenType != VbTypes.ASP_CLOSE) continue
+
+                val contentRange = TextRange(contentStart, lexer.tokenStart)
+                val outerRange = TextRange(outerStart, lexer.tokenEnd)
+                if (!contentRange.isEmpty) {
+                    add(
+                        Fragment(
+                            outerRange = outerRange,
+                            contentRange = contentRange,
+                            originalContent = contentRange.substring(text),
+                            expressionPrefix = if (openingType == VbTypes.ASP_EXPR_OPEN) "Response.Write " else null,
+                            baseIndent = lineIndentBefore(text, outerStart)
                         )
-                    }
+                    )
                 }
                 lexer.advance()
             }
         }
-    }
-
-    private fun rawScriptletInfo(outer: String): AspScriptletInfo? {
-        if (outer.length < 4 || !outer.startsWith("<%") || !outer.endsWith("%>")) return null
-        val third = outer[2]
-        if (third == '@' || (third == '-' && outer.getOrNull(3) == '-')) return null
-        val isExpression = third == '='
-        val start = if (isExpression) 3 else 2
-        val end = outer.length - 2
-        if (start >= end) return null
-        return AspScriptletInfo(TextRange(start, end), if (isExpression) "Response.Write " else null)
     }
 
     private fun replacementsAreSafe(

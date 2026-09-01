@@ -61,9 +61,10 @@ class VbSingleFileFindUsagesTest : BasePlatformTestCase() {
         val markerOffset = file.text.indexOf(marker)
         assertTrue("Marker '$marker' should exist", markerOffset >= 0)
         val idOffset = markerOffset + marker.indexOf(name)
-        val injected = InjectedLanguageManager.getInstance(project).findInjectedElementAt(file, idOffset)
-        assertNotNull("Marker '$marker' should be inside injected VBScript", injected)
-        return PsiTreeUtil.getParentOfType(injected, VbId::class.java, false)
+        val aspPsi = file.viewProvider.getPsi(AspLanguage) ?: file
+        val element = aspPsi.findElementAt(idOffset)
+        assertNotNull("Marker '$marker' should be inside native ASP PSI", element)
+        return PsiTreeUtil.getParentOfType(element, VbId::class.java, false)
             ?: fail("Marker '$marker' should point to VbId") as VbId
     }
 }

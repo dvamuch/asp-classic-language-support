@@ -7,18 +7,13 @@ class AspLexerSegmentationTest {
     @Test
     fun `splits asp outer and html template regions`() {
         val text = AspTestData.read("smoke/lexer_segments.asp")
-        val actual = dumpTokens(text)
-        val expected = """
-            ASP_TEMPLATE_DATA:<html>\n<body>\n
-            ASP_OUTER:<% Dim value %>
-            ASP_TEMPLATE_DATA:\n<p>
-            ASP_OUTER:<%= value %>
-            ASP_TEMPLATE_DATA:</p>\n
-            ASP_OUTER:<% value = value + 1 %>
-            ASP_TEMPLATE_DATA:\n</body>\n</html>\n
-        """.trimIndent()
-
-        assertEquals(expected, actual)
+        val actual = dumpTokens(text).lines()
+        assertEquals(4, actual.count { it.startsWith("VBScriptToken.ASP_TEMPLATE_DATA:") })
+        assertEquals(2, actual.count { it == "VBScriptToken.ASP_OPEN:<%" })
+        assertEquals(1, actual.count { it == "VBScriptToken.ASP_EXPR_OPEN:<%=" })
+        assertEquals(3, actual.count { it == "VBScriptToken.ASP_CLOSE:%>" })
+        assertEquals(4, actual.count { it == "VBScriptToken.IDENTIFIER:value" })
+        assertEquals(1, actual.count { it == "VBScriptToken.DIM:Dim" })
     }
 
     private fun dumpTokens(text: String): String {

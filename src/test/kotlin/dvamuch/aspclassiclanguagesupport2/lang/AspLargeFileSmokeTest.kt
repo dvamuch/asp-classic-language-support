@@ -6,6 +6,7 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbIfBlockStmt
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,13 +15,13 @@ import kotlin.streams.asSequence
 import kotlin.system.measureTimeMillis
 
 class AspLargeFileSmokeTest : BasePlatformTestCase() {
-    fun testParsesLargeSyntheticFileAndBuildsInjection() {
+    fun testParsesLargeSyntheticFileWithOneNativeAspPsi() {
         val text = buildLargeSyntheticAsp(repetitions = 750)
         assertTrue("Synthetic fixture must be large enough to exercise the pipeline", text.length >= 75_000)
 
         val elapsedMs = measureTimeMillis {
             val file = myFixture.configureByText(AspFileType, text)
-            assertInjectedVbscriptIsParseable(file, requireCrossScriptletResolve = true)
+            assertNativeAspIsParseable(file, requireCrossScriptletResolve = true)
         }
         assertTrue(
             "Large synthetic file should parse quickly enough for smoke checks: ${elapsedMs}ms",
@@ -28,17 +29,28 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         )
     }
 
-    fun testInjectionLookupIsLinearAcrossAllScriptlets() {
+    fun testNativePsiIsLinearAcrossAllScriptlets() {
         val text = buildLargeSyntheticAsp(repetitions = 750)
-        assertAllScriptletInjectionsAreResponsive("many-scriptlets.asp", text, 20_000)
+        assertNativePsiIsResponsive("many-scriptlets.asp", text, 10_000)
     }
 
-    fun testOptionalTtsOrderInfoInjectionPerformance() {
+    fun testOptionalTtsOrderInfoNativePsiPerformance() {
         val ttsRoot = System.getProperty("tts.project.dir") ?: return
         val path = Path.of(ttsRoot).resolve("customers/orderinfo.asp")
         if (!Files.isRegularFile(path)) return
         val text = Files.readString(path, StandardCharsets.UTF_8)
-        assertAllScriptletInjectionsAreResponsive("orderinfo.asp", text, 30_000)
+        assertNativePsiIsResponsive("orderinfo.asp", text, 10_000)
+    }
+
+    fun testOptionalTtsOrderInfoFullHighlightingPerformance() {
+        val ttsRoot = System.getProperty("tts.project.dir") ?: return
+        val path = Path.of(ttsRoot).resolve("customers/orderinfo.asp")
+        if (!Files.isRegularFile(path)) return
+        val text = Files.readString(path, StandardCharsets.UTF_8)
+        myFixture.configureByText("orderinfo-highlight.asp", text)
+        val elapsedMs = measureTimeMillis { myFixture.doHighlighting() }
+        println("ASP full highlighting performance: orderinfo.asp, elapsed=${elapsedMs}ms")
+        assertTrue("Full highlighting of orderinfo.asp took ${elapsedMs}ms", elapsedMs < 10_000)
     }
 
     fun testOptionalRealWorldAspFixtures() {
@@ -48,38 +60,18 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         files.forEach { path ->
             val text = Files.readString(path, StandardCharsets.UTF_8)
             val file = myFixture.configureByText(AspFileType, text)
-            assertInjectedVbscriptIsParseable(file, requireCrossScriptletResolve = false)
+            assertNativeAspIsParseable(file, requireCrossScriptletResolve = false)
         }
     }
 
-    private fun assertInjectedVbscriptIsParseable(psiFile: PsiFile, requireCrossScriptletResolve: Boolean) {
+    private fun assertNativeAspIsParseable(psiFile: PsiFile, requireCrossScriptletResolve: Boolean) {
         val aspPsi = psiFile.viewProvider.getPsi(AspLanguage)
         assertNotNull("ASP PSI should exist in view provider", aspPsi)
-        val hosts = PsiTreeUtil.collectElementsOfType(aspPsi, AspOuterPsiElement::class.java)
-        assertTrue("Expected at least one ASP scriptlet block", hosts.isNotEmpty())
-
         val manager = InjectedLanguageManager.getInstance(project)
-        val injectedFiles = linkedSetOf<PsiFile>()
-
-        sampleHosts(hosts).forEach { host ->
-            val start = host.textRange.startOffset
-            val end = host.textRange.endOffset
-            for (offset in listOf(start + 2, start + 3, start + 4)) {
-                if (offset >= end) continue
-                val injected = manager.findInjectedElementAt(psiFile, offset) ?: continue
-                injected.containingFile?.let { injectedFiles.add(it) }
-                break
-            }
-        }
-        assertTrue("Expected injected VBScript PSI for ASP scriptlets", injectedFiles.isNotEmpty())
-
-        injectedFiles.forEach { vbFile ->
-            val parseErrors = PsiTreeUtil.collectElementsOfType(vbFile, PsiErrorElement::class.java)
-            assertTrue(
-                "Injected VBScript should not degrade into massive parse failure in ${vbFile.name}",
-                parseErrors.size < 500
-            )
-        }
+        val firstScriptOffset = psiFile.text.indexOf("<%").takeIf { it >= 0 }?.plus(2) ?: 0
+        assertNull("ASP must not create per-scriptlet injected PSI", manager.findInjectedElementAt(psiFile, firstScriptOffset))
+        val parseErrors = PsiTreeUtil.collectElementsOfType(aspPsi, PsiErrorElement::class.java)
+        assertTrue("Native ASP PSI should not degrade into massive parse failure", parseErrors.size < 500)
 
         if (requireCrossScriptletResolve) {
             val usagePrefix = "Response.Write \"<p>user=\" & userName & \"</p>\""
@@ -87,40 +79,29 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
             assertTrue("Large fixture must contain userName usage line", usageLineOffset >= 0)
             val idOffset = psiFile.text.indexOf("userName", usageLineOffset)
             assertTrue("Large fixture must contain userName token in usage line", idOffset >= 0)
-            val injectedAtUsage = manager.findInjectedElementAt(psiFile, idOffset)
-            assertNotNull("Injected element should exist at userName usage offset", injectedAtUsage)
-
-            val id = PsiTreeUtil.getParentOfType(injectedAtUsage, VbId::class.java, false)
+            val id = PsiTreeUtil.getParentOfType(aspPsi!!.findElementAt(idOffset), VbId::class.java, false)
             if (id != null) {
                 id.references.firstOrNull()?.resolve()
             }
         }
     }
 
-    private fun assertAllScriptletInjectionsAreResponsive(name: String, text: String, limitMs: Long) {
+    private fun assertNativePsiIsResponsive(name: String, text: String, limitMs: Long) {
         val file = myFixture.configureByText(name, text)
-        val aspPsi = file.viewProvider.getPsi(AspLanguage)
-        assertNotNull("ASP PSI should exist in view provider", aspPsi)
-        val hosts = PsiTreeUtil.collectElementsOfType(aspPsi, AspOuterPsiElement::class.java)
-            .filter { aspScriptletInfo(it) != null }
-            .sortedBy { it.textRange.startOffset }
-        assertTrue("Fixture should contain many scriptlets", hosts.size >= 1_000)
-
-        val manager = InjectedLanguageManager.getInstance(project)
-        val injectedFiles = linkedSetOf<PsiFile>()
+        val scriptletCount = "<%".toRegex().findAll(text).count()
+        assertTrue("Fixture should contain many scriptlets", scriptletCount >= 1_000)
         val elapsedMs = measureTimeMillis {
-            hosts.forEach { host ->
-                val info = aspScriptletInfo(host) ?: return@forEach
-                val offset = host.textRange.startOffset + info.range.startOffset
-                val injected = manager.findInjectedElementAt(file, offset)
-                assertNotNull("Expected VBScript injection at host offset $offset", injected)
-                injected?.containingFile?.let(injectedFiles::add)
-            }
+            val aspPsi = file.viewProvider.getPsi(AspLanguage)
+            assertNotNull("ASP PSI should exist in view provider", aspPsi)
+            assertTrue("Native PSI should contain VBScript identifiers", PsiTreeUtil.collectElementsOfType(aspPsi, VbId::class.java).isNotEmpty())
+            val errors = PsiTreeUtil.collectElementsOfType(aspPsi, PsiErrorElement::class.java)
+            val crossTemplateIfs = PsiTreeUtil.collectElementsOfType(aspPsi, VbIfBlockStmt::class.java)
+                .count { it.text.contains("%>") && it.text.contains("<%") }
+            println("ASP native PSI structure: $name, errors=${errors.size}, crossTemplateIfs=$crossTemplateIfs")
+            assertTrue("Expected cross-template If blocks in $name", crossTemplateIfs > 0)
         }
-
-        assertEquals("Each scriptlet must own exactly one lightweight injection", hosts.size, injectedFiles.size)
-        println("ASP injection performance: $name, hosts=${hosts.size}, elapsed=${elapsedMs}ms")
-        assertTrue("All ${hosts.size} injection lookups took ${elapsedMs}ms", elapsedMs < limitMs)
+        println("ASP native PSI performance: $name, scriptlets=$scriptletCount, elapsed=${elapsedMs}ms")
+        assertTrue("Native PSI for $scriptletCount scriptlets took ${elapsedMs}ms", elapsedMs < limitMs)
     }
 
     private fun buildLargeSyntheticAsp(repetitions: Int): String = buildString {
@@ -133,6 +114,7 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         appendLine("%>")
         appendLine("<!doctype html>")
         appendLine("<html><body>")
+        appendLine("<% If total >= 0 Then %>")
 
         repeat(repetitions) { index ->
             appendLine("<section class=\"legacy-row\" data-index=\"$index\">")
@@ -142,17 +124,8 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         }
 
         appendLine("<% Response.Write \"<p>user=\" & userName & \"</p>\" %>")
+        appendLine("<% End If %>")
         appendLine("</body></html>")
-    }
-
-    private fun sampleHosts(hosts: Collection<AspOuterPsiElement>): List<AspOuterPsiElement> {
-        val allHosts = hosts.toList()
-        if (allHosts.size <= MAX_INJECTION_SAMPLES) return allHosts
-
-        val lastIndex = allHosts.lastIndex
-        return List(MAX_INJECTION_SAMPLES) { sampleIndex ->
-            allHosts[sampleIndex * lastIndex / (MAX_INJECTION_SAMPLES - 1)]
-        }
     }
 
     private fun listAspFixtures(dir: Path): List<Path> {
@@ -166,7 +139,4 @@ class AspLargeFileSmokeTest : BasePlatformTestCase() {
         }
     }
 
-    companion object {
-        private const val MAX_INJECTION_SAMPLES = 32
-    }
 }

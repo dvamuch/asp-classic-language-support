@@ -137,7 +137,7 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
 
         myFixture.type('\t')
 
-        assertEquals("Response.Write", myFixture.editor.document.text.trim())
+        assertEquals("<% Response.Write %>", myFixture.editor.document.text.trim())
     }
 
     fun testCompletionIsCaseInsensitive() {

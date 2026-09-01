@@ -10,34 +10,28 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.parser.VbScriptParser
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbElementType
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
 class AspParserDefinition : ParserDefinition {
     override fun createLexer(project: Project?) = AspLexer()
 
-    override fun createParser(project: Project?): PsiParser {
-        return PsiParser { root, builder ->
-            val marker = builder.mark()
-            while (!builder.eof()) {
-                builder.advanceLexer()
-            }
-            marker.done(root)
-            builder.treeBuilt
-        }
-    }
+    override fun createParser(project: Project?): PsiParser = VbScriptParser()
 
     override fun getFileNodeType(): IFileElementType = AspTokenTypes.FILE
 
-    override fun getWhitespaceTokens(): TokenSet = TokenSet.EMPTY
+    override fun getWhitespaceTokens(): TokenSet = TokenSet.create(com.intellij.psi.TokenType.WHITE_SPACE)
 
-    override fun getCommentTokens(): TokenSet = TokenSet.EMPTY
+    override fun getCommentTokens(): TokenSet = TokenSet.create(VbTypes.COMMENT)
 
-    override fun getStringLiteralElements(): TokenSet = TokenSet.EMPTY
+    override fun getStringLiteralElements(): TokenSet = TokenSet.create(VbTypes.STRING)
 
     override fun createElement(node: ASTNode): PsiElement {
-        return if (node.elementType == AspTokenTypes.OUTER) {
-            AspOuterPsiElement(node.elementType, node.text)
-        } else {
-            ASTWrapperPsiElement(node)
+        return when (node.elementType) {
+            AspTokenTypes.OUTER -> AspOuterPsiElement(node.elementType, node.text)
+            is VbElementType -> VbTypes.Factory.createElement(node)
+            else -> ASTWrapperPsiElement(node)
         }
     }
 

@@ -308,12 +308,11 @@ class VbIncludeResolveIntegrationTest : BasePlatformTestCase() {
         val usageOffset = source.text.indexOf(usageText)
         assertTrue("Usage '$usageText' should exist", usageOffset >= 0)
 
-        val injected = InjectedLanguageManager.getInstance(project)
-            .findInjectedElementAt(source, usageOffset)
-        assertNotNull("Usage '$usageText' should be inside injected VBScript", injected)
-
-        return PsiTreeUtil.getParentOfType(injected, VbId::class.java, false)
-            ?: failWithElement(injected!!, usageText)
+        val aspPsi = source.viewProvider.getPsi(AspLanguage) ?: source
+        val element = aspPsi.findElementAt(usageOffset)
+        assertNotNull("Usage '$usageText' should be inside native ASP PSI", element)
+        return PsiTreeUtil.getParentOfType(element, VbId::class.java, false)
+            ?: failWithElement(element!!, usageText)
     }
 
     private fun failWithElement(element: PsiElement, usageText: String): Nothing {
