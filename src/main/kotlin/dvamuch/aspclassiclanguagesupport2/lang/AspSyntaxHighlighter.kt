@@ -17,7 +17,7 @@ class AspSyntaxHighlighter : SyntaxHighlighter {
 
     override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> {
         return when (tokenType) {
-            AspTokenTypes.TEMPLATE_DATA -> arrayOf(DefaultLanguageHighlighterColors.TEMPLATE_LANGUAGE_COLOR)
+            AspTokenTypes.TEMPLATE_DATA -> emptyArray()
             VbTypes.ASP_OPEN, VbTypes.ASP_EXPR_OPEN, VbTypes.ASP_CLOSE -> SCRIPTLET_DELIMITER_KEYS
             else -> vbHighlighter.getTokenHighlights(tokenType)
         }
