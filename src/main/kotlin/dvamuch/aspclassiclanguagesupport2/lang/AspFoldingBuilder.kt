@@ -1,11 +1,10 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
-import com.intellij.injected.editor.DocumentWindow
 import com.intellij.lang.ASTNode
 import com.intellij.lang.folding.FoldingBuilderEx
 import com.intellij.lang.folding.FoldingDescriptor
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFoldingBuilder
@@ -16,19 +15,16 @@ class AspFoldingBuilder : FoldingBuilderEx() {
         document: Document,
         quick: Boolean
     ): Array<FoldingDescriptor> {
-        val manager = InjectedLanguageManager.getInstance(root.project)
-        val injectedFile = AspInjectedVbScript.findFile(root) ?: return emptyArray()
+        val aspFile = root.containingFile?.viewProvider?.getPsi(AspLanguage) ?: return emptyArray()
+        val context = AspVbScriptContext.getForAspFile(aspFile)
+        val analysisFile = context.analysisFile
 
-        val psiDocumentManager = PsiDocumentManager.getInstance(root.project)
         val descriptors = mutableListOf<FoldingDescriptor>()
-        val injectedDocument = psiDocumentManager.getDocument(injectedFile) as? DocumentWindow ?: return emptyArray()
-        val injectedDescriptors = vbFoldingBuilder.buildFoldRegions(injectedFile, injectedDocument, quick)
+        val analysisDocument = PsiDocumentManager.getInstance(root.project).getDocument(analysisFile)
+            ?: EditorFactory.getInstance().createDocument(analysisFile.text)
+        val injectedDescriptors = vbFoldingBuilder.buildFoldRegions(analysisFile, analysisDocument, quick)
         for (descriptor in injectedDescriptors) {
-            val injectedRange = descriptor.range
-            val editableRanges = manager.intersectWithAllEditableFragments(injectedFile, injectedRange)
-            if (editableRanges.isEmpty()) continue
-
-            val hostRange = injectedDocument.injectedToHost(injectedRange)
+            val hostRange = context.analysisSpanToHost(descriptor.range) ?: continue
             if (hostRange.length <= 0 || !root.textRange.contains(hostRange)) continue
             descriptors.add(FoldingDescriptor(root.node, hostRange))
         }

@@ -7,6 +7,7 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
 
 internal object VbIncludeSymbolResolver {
     fun resolve(usage: VbId, name: String): PsiElement? {
@@ -18,12 +19,12 @@ internal object VbIncludeSymbolResolver {
             val explicit = declarations
                 .filter { !it.implicit }
                 .maxByOrNull { it.id.textOffset }
-            if (explicit != null) return explicit.id
+            if (explicit != null) return hostTarget(includedFile, explicit.id)
 
             val implicit = declarations
                 .filter { it.implicit }
                 .maxByOrNull { it.id.textOffset }
-            if (implicit != null) return implicit.id
+            if (implicit != null) return hostTarget(includedFile, implicit.id)
         }
         return null
     }
@@ -47,13 +48,16 @@ internal object VbIncludeSymbolResolver {
         fun visit(aspFile: PsiFile) {
             for (includedAspFile in AspIncludeGraph.directIncludes(aspFile)) {
                 if (!visited.add(fileKey(includedAspFile))) continue
-                VbAspPsiUtil.injectedVbScriptFile(includedAspFile)?.let(result::add)
+                result += AspVbScriptContext.getForAspFile(includedAspFile).analysisFile
                 visit(includedAspFile)
             }
         }
 
         visit(sourceAspFile)
         return result
+    }
+    private fun hostTarget(file: PsiFile, id: VbId): PsiElement {
+        return AspVbScriptContext.forAnalysisFile(file)?.hostIdForAnalysis(id) ?: id
     }
     private fun fileKey(file: PsiFile): String = file.viewProvider.virtualFile.url
 }

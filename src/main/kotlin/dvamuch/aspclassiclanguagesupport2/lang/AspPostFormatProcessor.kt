@@ -1,20 +1,24 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.SyntaxTraverser
+import com.intellij.psi.TokenType
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.codeStyle.CodeStyleSettings
 import com.intellij.psi.impl.source.codeStyle.PostFormatProcessor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptControlFlowTracker
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptIndentNormalizer
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLexerAdapter
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
 class AspPostFormatProcessor : PostFormatProcessor {
     override fun processElement(source: PsiElement, settings: CodeStyleSettings): PsiElement {
+        if (source !is PsiFile) return source
         val file = source.containingFile ?: return source
         if (file.language != AspLanguage || isProcessing.get()) return source
         formatVbScriptFragments(file, settings)
@@ -23,6 +27,9 @@ class AspPostFormatProcessor : PostFormatProcessor {
 
     override fun processText(source: PsiFile, rangeToReformat: TextRange, settings: CodeStyleSettings): TextRange {
         if (source.language != AspLanguage || isProcessing.get()) return rangeToReformat
+        if (rangeToReformat.startOffset != 0 || rangeToReformat.endOffset < source.textLength) {
+            return rangeToReformat
+        }
         val oldLength = source.textLength
         formatVbScriptFragments(source, settings)
         val delta = source.textLength - oldLength
@@ -34,34 +41,30 @@ class AspPostFormatProcessor : PostFormatProcessor {
     private fun formatVbScriptFragments(file: PsiFile, settings: CodeStyleSettings) {
         val documentManager = PsiDocumentManager.getInstance(file.project)
         val document = documentManager.getDocument(file) ?: return
+        val originalDocumentText = document.text
         isProcessing.set(true)
         try {
-            if (separateMultilineScriptlets(file, document.charsSequence) { offset, text ->
-                    document.insertString(offset, text)
-                }
-            ) {
-                documentManager.commitDocument(document)
-                CodeStyleManager.getInstance(file.project).reformat(file)
-                documentManager.commitDocument(document)
-            }
-
-            val fragments = SyntaxTraverser.psiTraverser(file)
-                .filter(AspOuterPsiElement::class.java)
-                .mapNotNull { host ->
-                    val info = aspScriptletInfo(host) ?: return@mapNotNull null
-                    Fragment(
-                        contentRange = info.range.shiftRight(host.textRange.startOffset),
-                        originalContent = info.range.substring(host.text),
-                        expressionPrefix = info.prefix,
-                        baseIndent = lineIndentBefore(document.charsSequence, host.textRange.startOffset)
-                    )
-                }
-                .toList()
-                .sortedBy { fragment -> fragment.contentRange.startOffset }
-            if (fragments.isEmpty()) return
             val indentSize = settings.getCommonSettings(
                 dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
             ).indentOptions?.INDENT_SIZE ?: 4
+            val initialSnapshot = document.text
+            val insertions = multilineScriptletInsertions(initialSnapshot)
+            if (insertions.isNotEmpty()) {
+                val insertedLineOffsets = insertions.map { (offset, text) ->
+                    offset + text.length + insertions
+                        .filter { (otherOffset, _) -> otherOffset < offset }
+                        .sumOf { (_, otherText) -> otherText.length }
+                }
+                insertions.sortedByDescending { (offset, _) -> offset }
+                    .forEach { (offset, text) -> document.insertString(offset, text) }
+                documentManager.commitDocument(document)
+                adjustInsertedLineIndents(file, document, insertedLineOffsets, indentSize)
+                documentManager.commitDocument(document)
+            }
+
+            val fragmentSnapshot = document.text
+            val fragments = collectFragments(fragmentSnapshot)
+            if (fragments.isEmpty()) return
             val controlProfiles = analyzeControlFlow(fragments)
 
             val markedSource = buildMarkedSource(fragments)
@@ -78,47 +81,100 @@ class AspPostFormatProcessor : PostFormatProcessor {
                     ?: return@mapIndexed fragment.originalContent
                 prepareForHost(fragment, formatted, controlProfiles[index], indentSize)
             }
+            if (!replacementsAreSafe(fragmentSnapshot, fragments, replacements)) {
+                LOG.warn("ASP formatting cancelled because scriptlet ranges or tokens changed")
+                restoreDocument(documentManager, document, originalDocumentText)
+                return
+            }
             fragments.indices.reversed().forEach { index ->
                 val range = fragments[index].contentRange
                 document.replaceString(range.startOffset, range.endOffset, replacements[index])
             }
             documentManager.commitDocument(document)
-            applySemanticLayout(file, controlProfiles, indentSize)
+            applySemanticLayout(document, controlProfiles, indentSize)
             documentManager.commitDocument(document)
+            if (nonWhitespaceSkeleton(document.text) != nonWhitespaceSkeleton(originalDocumentText)) {
+                LOG.warn("ASP formatting changed non-whitespace document content; rolling back post-format pass")
+                restoreDocument(documentManager, document, originalDocumentText)
+            }
+        } catch (error: Throwable) {
+            restoreDocument(documentManager, document, originalDocumentText)
+            throw error
         } finally {
             isProcessing.remove()
         }
     }
 
-    private fun separateMultilineScriptlets(
-        file: PsiFile,
-        text: CharSequence,
-        insert: (Int, String) -> Unit
-    ): Boolean {
-        val insertions = buildList {
-            SyntaxTraverser.psiTraverser(file)
-                .filter(AspOuterPsiElement::class.java)
-                .forEach { host ->
-                    val info = aspScriptletInfo(host) ?: return@forEach
-                    val content = info.range.substring(host.text)
-                    if (content.none { char -> char == '\n' || char == '\r' }) return@forEach
+    private fun multilineScriptletInsertions(text: String): List<Pair<Int, String>> {
+        return buildList {
+            collectFragments(text).forEach { fragment ->
+                if (fragment.originalContent.none { char -> char == '\n' || char == '\r' }) return@forEach
 
-                    val start = host.textRange.startOffset
-                    val lineStart = findLineStart(text, start)
-                    val before = text.subSequence(lineStart, start)
-                    if (before.any { char -> char != ' ' && char != '\t' } &&
-                        before.lastOrNull { char -> char != ' ' && char != '\t' } == '>'
-                    ) {
-                        add(start to "\n")
-                    }
-
-                    val end = host.textRange.endOffset
-                    if (end < text.length && text[end] == '<') add(end to "\n")
+                val start = fragment.outerRange.startOffset
+                val lineStart = findLineStart(text, start)
+                val before = text.subSequence(lineStart, start)
+                if (before.any { char -> char != ' ' && char != '\t' } &&
+                    before.lastOrNull { char -> char != ' ' && char != '\t' } == '>'
+                ) {
+                    add(start to "\n")
                 }
+
+                val end = fragment.outerRange.endOffset
+                if (end < text.length && text[end] == '<') add(end to "\n")
+            }
+        }.distinct()
+    }
+
+    private fun adjustInsertedLineIndents(
+        file: PsiFile,
+        document: com.intellij.openapi.editor.Document,
+        insertedLineOffsets: List<Int>,
+        indentSize: Int
+    ) {
+        val snapshot = document.text
+        val fragmentsBeforeAdjustment = collectFragments(snapshot)
+        val insertedHostIndexes = fragmentsBeforeAdjustment.mapIndexedNotNull { index, fragment ->
+            index.takeIf { fragment.outerRange.startOffset in insertedLineOffsets }
+        }.toSet()
+        val codeStyleManager = CodeStyleManager.getInstance(file.project)
+        insertedLineOffsets.distinct().sortedDescending().forEach { offset ->
+            codeStyleManager.adjustLineIndent(file, offset)
         }
-        insertions.sortedByDescending { (offset, _) -> offset }
-            .forEach { (offset, value) -> insert(offset, value) }
-        return insertions.isNotEmpty()
+
+        val adjustedSnapshot = document.text
+        val replacements = collectFragments(adjustedSnapshot).mapIndexedNotNull { index, fragment ->
+            if (index !in insertedHostIndexes) return@mapIndexedNotNull null
+            val lineStart = findLineStart(adjustedSnapshot, fragment.outerRange.startOffset)
+            val currentIndent = adjustedSnapshot.substring(lineStart, fragment.outerRange.startOffset)
+            if (currentIndent.any { char -> char != ' ' && char != '\t' }) return@mapIndexedNotNull null
+
+            val nextLine = nextNonBlankLine(adjustedSnapshot, fragment.outerRange.endOffset)
+                ?: return@mapIndexedNotNull null
+            val nextIndentEnd = nextLine.indexOfFirst { char -> char != ' ' && char != '\t' }
+            val nextIndent = nextLine.substring(0, nextIndentEnd)
+            val desiredIndent = if (nextLine.substring(nextIndentEnd).startsWith("</")) {
+                nextIndent + " ".repeat(indentSize)
+            } else {
+                nextIndent
+            }
+            TextRange(lineStart, fragment.outerRange.startOffset) to desiredIndent
+        }
+        replacements.sortedByDescending { (range, _) -> range.startOffset }
+            .forEach { (range, replacement) ->
+                document.replaceString(range.startOffset, range.endOffset, replacement)
+            }
+    }
+
+    private fun nextNonBlankLine(text: String, offset: Int): String? {
+        var lineStart = nextLineStart(text, offset, text.length)
+        while (lineStart < text.length) {
+            var lineEnd = lineStart
+            while (lineEnd < text.length && text[lineEnd] != '\n' && text[lineEnd] != '\r') lineEnd++
+            val line = text.substring(lineStart, lineEnd)
+            if (line.isNotBlank()) return line
+            lineStart = nextLineStart(text, lineEnd, text.length)
+        }
+        return null
     }
 
     private fun buildMarkedSource(fragments: List<Fragment>): String = buildString {
@@ -213,31 +269,31 @@ class AspPostFormatProcessor : PostFormatProcessor {
         return lineStart
     }
 
-    private fun applySemanticLayout(file: PsiFile, profiles: List<ControlProfile>, indentSize: Int) {
-        val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return
-        val hosts = SyntaxTraverser.psiTraverser(file)
-            .filter(AspOuterPsiElement::class.java)
-            .filter { host -> aspScriptletInfo(host) != null }
-            .toList()
-            .sortedBy { host -> host.textRange.startOffset }
+    private fun applySemanticLayout(
+        document: com.intellij.openapi.editor.Document,
+        profiles: List<ControlProfile>,
+        indentSize: Int
+    ) {
+        val snapshot = document.text
+        val hosts = collectFragments(snapshot)
         if (hosts.size != profiles.size) return
 
         val replacements = linkedMapOf<TextRange, String>()
         hosts.forEachIndexed { index, host ->
             val profile = profiles[index]
-            val openOffset = host.textRange.startOffset
+            val openOffset = host.outerRange.startOffset
             val openLineStart = document.getLineStartOffset(document.getLineNumber(openOffset))
-            val beforeOpen = document.charsSequence.subSequence(openLineStart, openOffset)
+            val beforeOpen = snapshot.subSequence(openLineStart, openOffset)
             if (beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.startDepth > 0) {
                 replacements[TextRange(openLineStart, openOffset)] =
                     beforeOpen.toString() + " ".repeat(profile.startDepth * indentSize)
             }
 
-            val segmentStart = host.textRange.endOffset
-            val segmentEnd = hosts.getOrNull(index + 1)?.textRange?.startOffset ?: document.textLength
+            val segmentStart = host.outerRange.endOffset
+            val segmentEnd = hosts.getOrNull(index + 1)?.outerRange?.startOffset ?: snapshot.length
             if (profile.endDepth > 0) {
                 collectHtmlLineIndentReplacements(
-                    document.charsSequence,
+                    snapshot,
                     segmentStart,
                     segmentEnd,
                     profile.endDepth * indentSize,
@@ -249,6 +305,97 @@ class AspPostFormatProcessor : PostFormatProcessor {
             .forEach { (range, replacement) ->
                 document.replaceString(range.startOffset, range.endOffset, replacement)
             }
+    }
+
+    private fun collectFragments(text: String): List<Fragment> {
+        val lexer = AspLexer()
+        lexer.start(text)
+        return buildList {
+            while (lexer.tokenType != null) {
+                if (lexer.tokenType == AspTokenTypes.OUTER) {
+                    val outerStart = lexer.tokenStart
+                    val outerEnd = lexer.tokenEnd
+                    val outer = text.substring(outerStart, outerEnd)
+                    rawScriptletInfo(outer)?.let { info ->
+                        val contentRange = info.range.shiftRight(outerStart)
+                        add(
+                            Fragment(
+                                outerRange = TextRange(outerStart, outerEnd),
+                                contentRange = contentRange,
+                                originalContent = contentRange.substring(text),
+                                expressionPrefix = info.prefix,
+                                baseIndent = lineIndentBefore(text, outerStart)
+                            )
+                        )
+                    }
+                }
+                lexer.advance()
+            }
+        }
+    }
+
+    private fun rawScriptletInfo(outer: String): AspScriptletInfo? {
+        if (outer.length < 4 || !outer.startsWith("<%") || !outer.endsWith("%>")) return null
+        val third = outer[2]
+        if (third == '@' || (third == '-' && outer.getOrNull(3) == '-')) return null
+        val isExpression = third == '='
+        val start = if (isExpression) 3 else 2
+        val end = outer.length - 2
+        if (start >= end) return null
+        return AspScriptletInfo(TextRange(start, end), if (isExpression) "Response.Write " else null)
+    }
+
+    private fun replacementsAreSafe(
+        snapshot: String,
+        fragments: List<Fragment>,
+        replacements: List<String>
+    ): Boolean {
+        if (fragments.size != replacements.size) return false
+        return fragments.indices.all { index ->
+            val fragment = fragments[index]
+            val range = fragment.contentRange
+            range.startOffset >= 0 && range.endOffset <= snapshot.length &&
+                range.substring(snapshot) == fragment.originalContent &&
+                preservesVbScriptTokens(fragment.originalContent, replacements[index])
+        }
+    }
+
+    private fun preservesVbScriptTokens(before: String, after: String): Boolean {
+        return nonWhitespaceSkeleton(before) == nonWhitespaceSkeleton(after) &&
+            significantVbScriptTokens(before) == significantVbScriptTokens(after)
+    }
+
+    private fun significantVbScriptTokens(text: String): List<Pair<String, String>> {
+        val lexer = VbScriptLexerAdapter()
+        lexer.start(text)
+        return buildList {
+            while (lexer.tokenType != null) {
+                val type = lexer.tokenType
+                if (type != TokenType.WHITE_SPACE && type != VbTypes.EOL) {
+                    val rawText = text.substring(lexer.tokenStart, lexer.tokenEnd)
+                    val tokenText = if (type == VbTypes.COMMENT) {
+                        rawText.filterNot(Char::isWhitespace)
+                    } else {
+                        rawText
+                    }
+                    add(type.toString() to tokenText)
+                }
+                lexer.advance()
+            }
+        }
+    }
+
+    private fun nonWhitespaceSkeleton(text: String): String = text.filterNot(Char::isWhitespace)
+
+    private fun restoreDocument(
+        documentManager: PsiDocumentManager,
+        document: com.intellij.openapi.editor.Document,
+        originalText: String
+    ) {
+        if (document.text != originalText) {
+            document.replaceString(0, document.textLength, originalText)
+            documentManager.commitDocument(document)
+        }
     }
 
     private fun collectHtmlLineIndentReplacements(
@@ -302,6 +449,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
     private fun marker(index: Int, boundary: String): String = "'__ASP_FORMAT_${index}_${boundary}__"
 
     private data class Fragment(
+        val outerRange: TextRange,
         val contentRange: TextRange,
         val originalContent: String,
         val expressionPrefix: String?,
@@ -315,6 +463,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
     )
 
     companion object {
+        private val LOG = Logger.getInstance(AspPostFormatProcessor::class.java)
         private val isProcessing = ThreadLocal.withInitial { false }
     }
 }

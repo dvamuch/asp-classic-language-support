@@ -4,7 +4,6 @@ import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
-import com.intellij.psi.SyntaxTraverser
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
 
 class AspScriptletMultiHostInjector : MultiHostInjector {
@@ -14,23 +13,10 @@ class AspScriptletMultiHostInjector : MultiHostInjector {
 
     override fun getLanguagesToInject(registrar: MultiHostRegistrar, context: PsiElement) {
         val contextHost = context as? AspOuterPsiElement ?: return
-        if (aspScriptletInfo(contextHost) == null) return
-        val templatePsi = contextHost.containingFile
-
-        var injecting = false
-        val traverser = SyntaxTraverser.psiTraverser(templatePsi)
-        for (element in traverser) {
-            val aspHost = element as? AspOuterPsiElement ?: continue
-            val info = aspScriptletInfo(aspHost) ?: continue
-            if (!injecting) {
-                registrar.startInjecting(VbScriptLanguage)
-                injecting = true
-            }
-            registrar.addPlace(info.prefix, "\n", aspHost, info.range)
-        }
-        if (injecting) {
-            registrar.doneInjecting()
-        }
+        val info = aspScriptletInfo(contextHost) ?: return
+        registrar.startInjecting(VbScriptLanguage)
+        registrar.addPlace(info.prefix, "\n", contextHost, info.range)
+        registrar.doneInjecting()
     }
 }
 

@@ -123,13 +123,14 @@ class VbKeywordMatcherIntegrationTest : BasePlatformTestCase() {
         val manager = InjectedLanguageManager.getInstance(project)
         val dimHostOffset = file.text.indexOf("Dim MM_columnsStr")
         val ifHostOffset = file.text.indexOf("If showDetails")
-        val injectedFile = manager.findInjectedElementAt(file, dimHostOffset)!!.containingFile
+        val dimInjectedFile = manager.findInjectedElementAt(file, dimHostOffset)!!.containingFile
 
         assertNull(
             "A host offset on Dim must not accidentally match a later injected If",
-            HeavyBraceHighlighter.match(injectedFile, dimHostOffset)
+            HeavyBraceHighlighter.match(dimInjectedFile, dimHostOffset)
         )
 
+        val injectedFile = manager.findInjectedElementAt(file, ifHostOffset)!!.containingFile
         val pair = HeavyBraceHighlighter.match(injectedFile, ifHostOffset)
         assertNotNull("Host offset on If should resolve inside injected VBScript", pair)
         assertEquals("If", pair!!.first.substring(injectedFile.text))
