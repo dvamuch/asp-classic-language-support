@@ -5,9 +5,6 @@ import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.util.PsiTreeUtil
-import dvamuch.aspclassiclanguagesupport2.lang.AspOuterPsiElement
-import dvamuch.aspclassiclanguagesupport2.lang.aspScriptletInfo
 import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
 
 internal object VbAspPsiUtil {
@@ -30,15 +27,6 @@ internal object VbAspPsiUtil {
     }
 
     fun injectedVbScriptFile(aspFile: PsiFile): PsiFile? {
-        val manager = InjectedLanguageManager.getInstance(aspFile.project)
-        val hosts = PsiTreeUtil.collectElementsOfType(aspFile, AspOuterPsiElement::class.java)
-            .sortedBy { it.textOffset }
-        for (host in hosts) {
-            val info = aspScriptletInfo(host) ?: continue
-            val hostOffset = host.textRange.startOffset + info.range.startOffset
-            val injected = manager.findInjectedElementAt(aspFile, hostOffset) ?: continue
-            return injected.containingFile
-        }
-        return null
+        return AspIncludeGraph.aspPsi(aspFile)
     }
 }

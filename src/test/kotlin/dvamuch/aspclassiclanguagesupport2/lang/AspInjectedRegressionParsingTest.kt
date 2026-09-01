@@ -3,6 +3,7 @@ package dvamuch.aspclassiclanguagesupport2.lang
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbIfBlockStmt
 
 class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
     fun testParsesCommentOnlyScriptlet() {
@@ -33,7 +34,7 @@ class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
     }
 
     fun testParsesBlockIfAndElseIfAcrossAspScriptlets() {
-        assertInjectedParses(
+        val aspPsi = assertNativeAspParses(
             """
             <% If outerCondition Then %>
               <div>
@@ -49,19 +50,23 @@ class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
             <% End If %>
             """.trimIndent()
         )
+        val blocks = PsiTreeUtil.collectElementsOfType(aspPsi, VbIfBlockStmt::class.java)
+        assertEquals("Both cross-scriptlet If blocks must be represented in native ASP PSI", 2, blocks.size)
+        assertTrue("Outer If PSI must include intervening HTML", blocks.maxBy { it.textLength }.text.contains("<div>"))
     }
 
     private fun assertInjectedParses(aspText: String) {
+        assertNativeAspParses(aspText)
+    }
+
+    private fun assertNativeAspParses(aspText: String): com.intellij.psi.PsiFile {
         val root = myFixture.configureByText(AspFileType, aspText)
         val aspPsi = root.viewProvider.getPsi(AspLanguage)
         assertNotNull("ASP PSI should exist", aspPsi)
 
-        val hosts = PsiTreeUtil.collectElementsOfType(aspPsi, AspOuterPsiElement::class.java)
-        assertTrue("Expected ASP scriptlet blocks", hosts.isNotEmpty())
-
-        val analysisFile = AspVbScriptContext.getForAspFile(aspPsi!!).analysisFile
-        val errors = PsiTreeUtil.collectElementsOfType(analysisFile, PsiErrorElement::class.java)
+        val errors = PsiTreeUtil.collectElementsOfType(aspPsi, PsiErrorElement::class.java)
         val details = errors.take(8).joinToString("\n") { "${it.errorDescription} :: ${it.text}" }
-        assertTrue("Unexpected injected parse errors:\n$details", errors.isEmpty())
+        assertTrue("Unexpected native ASP parse errors:\n$details", errors.isEmpty())
+        return aspPsi!!
     }
 }

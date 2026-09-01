@@ -77,7 +77,6 @@
                              implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFoldingBuilder"/>
         <lang.psiStructureViewFactory language="ASP"
                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspStructureViewFactory"/>
-        <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
         <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPostFormatProcessor"
                              order="last"/>
     </extensions>

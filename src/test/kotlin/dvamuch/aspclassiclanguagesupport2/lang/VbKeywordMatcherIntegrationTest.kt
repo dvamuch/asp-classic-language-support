@@ -103,7 +103,7 @@ class VbKeywordMatcherIntegrationTest : BasePlatformTestCase() {
         assertPairAt(file, file.text.indexOf("End If"), "If", "End If")
     }
 
-    fun testConvertsHostCaretOffsetForInjectedVbScript() {
+    fun testMatchesKeywordsAtNativeAspOffsets() {
         val file = myFixture.configureByText(
             AspFileType,
             """
@@ -120,21 +120,18 @@ class VbKeywordMatcherIntegrationTest : BasePlatformTestCase() {
             %>
             """.trimIndent()
         )
-        val manager = InjectedLanguageManager.getInstance(project)
         val dimHostOffset = file.text.indexOf("Dim MM_columnsStr")
         val ifHostOffset = file.text.indexOf("If showDetails")
-        val dimInjectedFile = manager.findInjectedElementAt(file, dimHostOffset)!!.containingFile
 
         assertNull(
-            "A host offset on Dim must not accidentally match a later injected If",
-            HeavyBraceHighlighter.match(dimInjectedFile, dimHostOffset)
+            "A host offset on Dim must not accidentally match a later If",
+            HeavyBraceHighlighter.match(file, dimHostOffset)
         )
 
-        val injectedFile = manager.findInjectedElementAt(file, ifHostOffset)!!.containingFile
-        val pair = HeavyBraceHighlighter.match(injectedFile, ifHostOffset)
-        assertNotNull("Host offset on If should resolve inside injected VBScript", pair)
-        assertEquals("If", pair!!.first.substring(injectedFile.text))
-        assertEquals("End If", pair.second.substring(injectedFile.text))
+        val pair = HeavyBraceHighlighter.match(file, ifHostOffset)
+        assertNotNull("Host offset on If should resolve inside native ASP PSI", pair)
+        assertEquals("If", pair!!.first.substring(file.text))
+        assertEquals("End If", pair.second.substring(file.text))
     }
 
     private fun assertPairAt(file: PsiFile, offset: Int, expectedOpening: String, expectedClosing: String) {

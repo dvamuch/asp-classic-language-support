@@ -64,8 +64,8 @@ class AspFormattingModelBuilder : AbstractXmlTemplateFormattingModelBuilder() {
         xmlFormattingPolicy: XmlFormattingPolicy,
         indent: Indent?
     ): List<Block> {
-        val baseFile = file.viewProvider.getPsi(file.viewProvider.baseLanguage) ?: return emptyList()
-        return SyntaxTraverser.psiTraverser(baseFile)
+        val markupFile = file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE) ?: return emptyList()
+        return SyntaxTraverser.psiTraverser(markupFile)
             .filter(AspOuterPsiElement::class.java)
             .filter { element -> range.intersects(element.textRange) }
             .toList()

@@ -4,12 +4,10 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
-import com.intellij.psi.util.PsiTreeUtil
-import dvamuch.aspclassiclanguagesupport2.lang.AspOuterPsiElement
-import dvamuch.aspclassiclanguagesupport2.lang.aspScriptletInfo
+import dvamuch.aspclassiclanguagesupport2.lang.AspLexer
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
-/** Finds VB identifiers without building the injected parser tree. */
+/** Finds VB identifiers in the native ASP token stream without walking PSI. */
 internal object VbAspIdentifierScanner {
     data class Result(
         val ranges: List<TextRange>,
@@ -25,26 +23,25 @@ internal object VbAspIdentifierScanner {
 
     fun scan(aspFile: PsiFile, name: String): Result {
         val tokens = mutableListOf<Token>()
-        val hosts = PsiTreeUtil.collectElementsOfType(aspFile, AspOuterPsiElement::class.java)
-            .sortedBy { it.textOffset }
-        hosts.forEachIndexed { hostIndex, host ->
-            val info = aspScriptletInfo(host) ?: return@forEachIndexed
-            val text = info.range.substring(host.text)
-            val lexer = VbScriptLexerAdapter()
-            lexer.start(text)
-            while (lexer.tokenType != null) {
-                val type = lexer.tokenType!!
-                if (type != TokenType.WHITE_SPACE && type != VbTypes.COMMENT) {
-                    val start = host.textRange.startOffset + info.range.startOffset + lexer.tokenStart
-                    tokens += Token(
-                        type,
-                        lexer.tokenText,
-                        TextRange(start, start + lexer.tokenText.length),
-                        hostIndex
-                    )
-                }
-                lexer.advance()
+        val lexer = AspLexer()
+        lexer.start(aspFile.text)
+        var scriptletIndex = -1
+        while (lexer.tokenType != null) {
+            val type = lexer.tokenType!!
+            if (type == VbTypes.ASP_OPEN || type == VbTypes.ASP_EXPR_OPEN) scriptletIndex++
+            if (
+                type != TokenType.WHITE_SPACE && type != VbTypes.COMMENT &&
+                type != VbTypes.ASP_TEMPLATE_DATA && type != VbTypes.ASP_CONTROL &&
+                type != VbTypes.ASP_OPEN && type != VbTypes.ASP_EXPR_OPEN && type != VbTypes.ASP_CLOSE
+            ) {
+                tokens += Token(
+                    type,
+                    lexer.tokenText,
+                    TextRange(lexer.tokenStart, lexer.tokenEnd),
+                    scriptletIndex
+                )
             }
+            lexer.advance()
         }
 
         val matches = tokens.indices.filter { index ->
