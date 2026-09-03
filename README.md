@@ -43,10 +43,38 @@ If you want to help:
 3. **Suggestions**: Have an idea for a feature? Let's discuss it in the Issues.
 
 ### Development Note
-This project uses Gradle. You can run the IDE with the plugin enabled using:
+
+The development and test target is **PhpStorm 2026.1.2 (PS-261.24374.185)**.
+New builds require platform 261.24374 or later; compatibility with 2025.2 is
+no longer claimed. The Gradle wrapper uses Java 21+; the test IDE runs with
+its JetBrains Runtime. Kotlin is 2.3.20 and is not bundled in the plugin ZIP.
+
+Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
+
 ```bash
+./gradlew test
+./gradlew buildPlugin
 ./gradlew runIde
 ```
+
+To reuse an existing installation instead of downloading PhpStorm, pass
+`-PlocalIdePath=/absolute/path/to/PhpStorm.app/Contents` to any of these commands.
+The installation is read as an SDK; tests use a separate sandbox, not your
+working IDE profile. `AspPlatformCompatibilityTest` asserts the exact test build.
+
+The optional TTS formatter audit only reads source files and reformats in-memory
+copies. Run bounded batches with immediate per-file progress:
+
+```bash
+./gradlew test --tests '*AspTtsFormattingSafetyTest' \
+  -PttsProjectDir=/absolute/path/to/TTS -PttsPathFilter=Bugs/ \
+  -PttsBatchSize=100 -PttsBatchIndex=0
+```
+
+For real editor actions, selections, Undo, and important large files, run
+`*AspEditorReformatSafetyTest` and `*AspFormattingModelSafetyTest` with
+`-PttsProjectDir`. Their external-file cases need that property; a normal
+`test` run does not constitute a TTS corpus audit.
 
 ## License
 Distributed under the Apache License 2.0. See `LICENSE` for more information.

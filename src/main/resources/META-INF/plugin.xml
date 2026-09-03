@@ -16,8 +16,8 @@
         An IntelliJ Platform plugin that adds support for ASP Classic files with VBScript engine (.asp, .inc).
         Current state:
         — HTML part is handled by the IDE;
-        — VBScript code in ASP Blocks has basic highlighting;
-        — Multi-host injection allows handling multiple scriptlet blocks as a single context.
+        — ASP/VBScript has highlighting, navigation, usages, completion and formatting;
+        — a native file-wide PSI keeps multiple scriptlet blocks in one VBScript context.
 
         Even in this state it helps a lot while working with old legacy codebases.
     </description>
@@ -77,6 +77,7 @@
                              implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFoldingBuilder"/>
         <lang.psiStructureViewFactory language="ASP"
                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspStructureViewFactory"/>
+        <preFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPreFormatProcessor"/>
         <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPostFormatProcessor"
                              order="last"/>
     </extensions>

@@ -9,6 +9,51 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 
 class AspFormatterIntegrationTest : BasePlatformTestCase() {
+    fun testHtmlWrappingUsesFinalAspExpressionWidth() {
+        for (padding in 40..60) {
+            val source = "<div><input title=\"${"x".repeat(padding)}\" value=\"<%=Session(\"UserID\")%>\" size=\"32\"></div>"
+            val file = myFixture.configureByText(AspFileType, source)
+            reformat(file)
+            val onceFormatted = file.text
+            assertEquals(source.filterNot(Char::isWhitespace), onceFormatted.filterNot(Char::isWhitespace))
+            assertTrue(onceFormatted.contains("<%= Session(\"UserID\") %>"))
+            reformat(file)
+            assertEquals("HTML wraps must settle on the first pass (padding=$padding)", onceFormatted, file.text)
+        }
+    }
+
+    fun testKeepsInlineControlFlowInsideHtmlTag() {
+        val source = "<input <% If ready Then %> checked <% End If %> value=\"<%=value%>\">"
+        val file = myFixture.configureByText(AspFileType, source)
+        reformat(file)
+        assertTrue(file.text.contains("<% If ready Then %>"))
+        assertTrue(file.text.contains("<% End If %>"))
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals(onceFormatted, file.text)
+    }
+
+    fun testDoesNotAccumulateWhitespaceBeforeClosingDelimiter() {
+        assertReformatted(
+            "<div>\n    <%\n    If ready Then\n        value = 1\n    End If\n  %>\n</div>",
+            "<div>\n    <%\n    If ready Then\n        value = 1\n    End If\n    %>\n</div>"
+        )
+    }
+
+    fun testFormatsAspExpressionInsideJavaScriptString() {
+        val source = "<script>const name='<%=value+1%>';if(name){alert(name);}</script>"
+        val file = myFixture.configureByText(AspFileType, source)
+
+        // PhpStorm 2026.1's JS formatter calls the template builder with null indent.
+        reformat(file)
+
+        assertEquals(source.filterNot(Char::isWhitespace), file.text.filterNot(Char::isWhitespace))
+        assertTrue("VBScript should be formatted even inside a JS string", file.text.contains("'<%= value + 1 %>'"))
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Embedded JS/ASP formatting must be stable", onceFormatted, file.text)
+    }
+
     fun testFormatsPureHtmlWithBuiltInHtmlFormatter() {
         val source = """
             <html><body><main><section><span>Text</span></section></main></body></html>

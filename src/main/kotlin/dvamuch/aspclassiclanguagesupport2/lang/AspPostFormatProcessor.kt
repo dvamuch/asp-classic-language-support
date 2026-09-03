@@ -38,7 +38,11 @@ class AspPostFormatProcessor : PostFormatProcessor {
 
     override fun isWhitespaceOnly(): Boolean = true
 
-    private fun formatVbScriptFragments(file: PsiFile, settings: CodeStyleSettings) {
+    internal fun prepareCodeSpacing(file: PsiFile, settings: CodeStyleSettings) {
+        if (!isProcessing.get()) formatVbScriptFragments(file, settings, formatSpacing = true)
+    }
+
+    private fun formatVbScriptFragments(file: PsiFile, settings: CodeStyleSettings, formatSpacing: Boolean = false) {
         val documentManager = PsiDocumentManager.getInstance(file.project)
         val document = documentManager.getDocument(file) ?: return
         val originalDocumentText = document.text
@@ -58,7 +62,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 insertions.sortedByDescending { (offset, _) -> offset }
                     .forEach { (offset, text) -> document.insertString(offset, text) }
                 documentManager.commitDocument(document)
-                adjustInsertedLineIndents(file, document, insertedLineOffsets, indentSize)
+                if (!formatSpacing) adjustInsertedLineIndents(file, document, insertedLineOffsets, indentSize)
                 documentManager.commitDocument(document)
             }
 
@@ -68,13 +72,18 @@ class AspPostFormatProcessor : PostFormatProcessor {
             val controlProfiles = analyzeControlFlow(fragments)
 
             val markedSource = buildMarkedSource(fragments)
-            val temporaryFile = PsiFileFactory.getInstance(file.project).createFileFromText(
-                "asp-format.vbs",
-                VbScriptFileType,
+            // Spacing must settle BEFORE the HTML formatter calculates line wraps.
+            // Afterwards only recompute indentation against the final HTML layout.
+            val spacedSource = if (formatSpacing) {
+                val temporaryFile = PsiFileFactory.getInstance(file.project).createFileFromText(
+                    "asp-format.vbs", VbScriptFileType, markedSource
+                )
+                CodeStyleManager.getInstance(file.project).reformat(temporaryFile)
+                temporaryFile.text
+            } else {
                 markedSource
-            )
-            CodeStyleManager.getInstance(file.project).reformat(temporaryFile)
-            val formattedSource = VbScriptIndentNormalizer.normalizeText(temporaryFile.text, indentSize)
+            }
+            val formattedSource = VbScriptIndentNormalizer.normalizeText(spacedSource, indentSize)
 
             val replacements = fragments.mapIndexed { index, fragment ->
                 val formatted = extractFragment(formattedSource, index)
@@ -91,10 +100,10 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 document.replaceString(range.startOffset, range.endOffset, replacements[index])
             }
             documentManager.commitDocument(document)
-            applySemanticLayout(document, controlProfiles, indentSize)
+            if (!formatSpacing) applySemanticLayout(document, controlProfiles, indentSize)
             documentManager.commitDocument(document)
             if (nonWhitespaceSkeleton(document.text) != nonWhitespaceSkeleton(originalDocumentText)) {
-                LOG.warn("ASP formatting changed non-whitespace document content; rolling back post-format pass")
+                LOG.warn("ASP formatting changed non-whitespace document content; rolling back scriptlet pass")
                 restoreDocument(documentManager, document, originalDocumentText)
             }
         } catch (error: Throwable) {
@@ -228,7 +237,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
         }
 
         val originalHasLineBreak = fragment.originalContent.any { char -> char == '\n' || char == '\r' }
-        if (!originalHasLineBreak && profile.isBoundary) {
+        if (!originalHasLineBreak && profile.isBoundary && fragment.standalone) {
             val closingIndent = fragment.baseIndent + " ".repeat(profile.endDepth * indentSize)
             return "\n${fragment.baseIndent}${content.trim()}\n$closingIndent"
         }
@@ -247,7 +256,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
             val line = rawLine.removeSuffix("\r")
             if (index == 0) {
                 line
-            } else if (index == lines.lastIndex && line.isEmpty()) {
+            } else if (index == lines.lastIndex && line.all { it == ' ' || it == '\t' }) {
                 baseIndent + " ".repeat(closingExtraIndent)
             } else if (line.isNotEmpty() || index == lines.lastIndex) {
                 baseIndent + line
@@ -333,13 +342,22 @@ class AspPostFormatProcessor : PostFormatProcessor {
                             contentRange = contentRange,
                             originalContent = contentRange.substring(text),
                             expressionPrefix = if (openingType == VbTypes.ASP_EXPR_OPEN) "Response.Write " else null,
-                            baseIndent = lineIndentBefore(text, outerStart)
+                            baseIndent = lineIndentBefore(text, outerStart),
+                            standalone = isStandaloneScriptlet(text, outerRange)
                         )
                     )
                 }
                 lexer.advance()
             }
         }
+    }
+
+    private fun isStandaloneScriptlet(text: String, range: TextRange): Boolean {
+        val lineEnd = text.indexOfAny(charArrayOf('\r', '\n'), range.endOffset)
+            .takeIf { it >= 0 } ?: text.length
+        return text.subSequence(findLineStart(text, range.startOffset), range.startOffset)
+            .all { it == ' ' || it == '\t' } &&
+            text.subSequence(range.endOffset, lineEnd).all { it == ' ' || it == '\t' }
     }
 
     private fun replacementsAreSafe(
@@ -450,7 +468,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val contentRange: TextRange,
         val originalContent: String,
         val expressionPrefix: String?,
-        val baseIndent: String
+        val baseIndent: String,
+        val standalone: Boolean
     )
 
     private data class ControlProfile(

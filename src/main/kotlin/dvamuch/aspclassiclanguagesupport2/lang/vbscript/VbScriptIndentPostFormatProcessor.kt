@@ -68,7 +68,7 @@ internal object VbScriptIndentNormalizer {
                     append(" ".repeat(level * indentSize))
                     append(code)
                 }
-                previousLineContinues = line.trimEnd().endsWith('_')
+                previousLineContinues = hasLineContinuation(line)
 
                 if (lineEnd < text.length) {
                     if (text[lineEnd] == '\r' && lineEnd + 1 < text.length && text[lineEnd + 1] == '\n') {
@@ -83,6 +83,22 @@ internal object VbScriptIndentNormalizer {
                 }
             }
         }
+    }
+
+    private fun hasLineContinuation(line: String): Boolean {
+        if (!line.trimEnd().endsWith('_')) return false
+        // An underscore in a comment (including our ASP fragment markers) is
+        // not a continuation and must not suppress tracking of the next If/End If.
+        val source = "$line\n"
+        val lexer = VbScriptLexerAdapter()
+        lexer.start(source)
+        while (lexer.tokenType != null) {
+            if (lexer.tokenType == com.intellij.psi.TokenType.WHITE_SPACE &&
+                VbScriptFormattingSupport.isLineContinuation(source.subSequence(lexer.tokenStart, lexer.tokenEnd))
+            ) return true
+            lexer.advance()
+        }
+        return false
     }
 
 }

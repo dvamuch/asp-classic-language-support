@@ -1,10 +1,11 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
-import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.editor.event.DocumentEvent
+import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.TokenType
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.util.PsiTreeUtil
@@ -131,14 +132,37 @@ class AspTtsFormattingSafetyTest : BasePlatformTestCase() {
         // is an input-decoding change rather than a formatting change.
         val before = snapshot(file, file.text, path.extension)
 
-        WriteCommandAction.runWriteCommandAction(project) {
-            CodeStyleManager.getInstance(project).reformat(file)
+        val document = myFixture.editor.document
+        var firstDestructiveChange: String? = null
+        val listener = object : DocumentListener {
+            override fun beforeDocumentChange(event: DocumentEvent) {
+                if (firstDestructiveChange == null &&
+                    event.oldFragment.filterNot(Char::isWhitespace) != event.newFragment.filterNot(Char::isWhitespace)
+                ) {
+                    firstDestructiveChange = "offset=${event.offset}, oldLength=${event.oldLength}, newLength=${event.newLength}\n" +
+                        Throwable().stackTrace.joinToString("\n")
+                }
+            }
+        }
+        document.addDocumentListener(listener)
+        try {
+            WriteCommandAction.runWriteCommandAction(project) {
+                CodeStyleManager.getInstance(project).reformat(file)
+            }
+            PsiDocumentManager.getInstance(project).commitAllDocuments()
+        } finally {
+            document.removeDocumentListener(listener)
         }
 
         val formatted = file.text
         val after = snapshot(file, formatted, path.extension)
 
         if (before.nonWhitespaceSkeleton != after.nonWhitespaceSkeleton) {
+            val artifactDir = reportsDir().resolve("tts-format-diagnostics").resolve(relativePath)
+            Files.createDirectories(artifactDir)
+            Files.writeString(artifactDir.resolve("before.txt"), original)
+            Files.writeString(artifactDir.resolve("after.txt"), formatted)
+            Files.writeString(artifactDir.resolve("first-change.txt"), firstDestructiveChange.orEmpty())
             failures += Failure(
                 relativePath,
                 "non-whitespace characters changed: " + firstDifference(
@@ -174,28 +198,16 @@ class AspTtsFormattingSafetyTest : BasePlatformTestCase() {
         val lexer = AspLexer()
         lexer.start(text)
         val result = mutableListOf<TokenFingerprint>()
-        var fragmentIndex = 0
         while (lexer.tokenType != null) {
-            if (lexer.tokenType == AspTokenTypes.OUTER) {
-                val outer = text.substring(lexer.tokenStart, lexer.tokenEnd)
-                scriptletContent(outer)?.let { content ->
-                    result += TokenFingerprint("FRAGMENT_START", fragmentIndex.toString())
-                    result += lexVbScript(content)
-                    result += TokenFingerprint("FRAGMENT_END", fragmentIndex.toString())
-                    fragmentIndex++
-                }
+            val type = lexer.tokenType
+            if (type != AspTokenTypes.TEMPLATE_DATA && type != TokenType.WHITE_SPACE && type != VbTypes.EOL) {
+                val rawText = text.substring(lexer.tokenStart, lexer.tokenEnd)
+                val tokenText = if (type == VbTypes.COMMENT) rawText.filterNot(Char::isWhitespace) else rawText
+                result += TokenFingerprint(type.toString(), tokenText)
             }
             lexer.advance()
         }
         return result
-    }
-
-    private fun scriptletContent(outer: String): String? {
-        if (!outer.startsWith("<%") || !outer.endsWith("%>") || outer.length < 4) return null
-        if (outer.startsWith("<%--") || outer.startsWith("<%@")) return null
-        val contentStart = if (outer.startsWith("<%=")) 3 else 2
-        val contentEnd = outer.length - 2
-        return if (contentStart < contentEnd) outer.substring(contentStart, contentEnd) else null
     }
 
     private fun lexVbScript(text: String): List<TokenFingerprint> {
@@ -227,22 +239,15 @@ class AspTtsFormattingSafetyTest : BasePlatformTestCase() {
         }
 
         val aspPsi = file.viewProvider.getPsi(AspLanguage) ?: return 0
-        val manager = InjectedLanguageManager.getInstance(project)
-        val injectedFiles = linkedSetOf<PsiFile>()
-        SyntaxTraverser.psiTraverser(aspPsi)
-            .filter(AspOuterPsiElement::class.java)
-            .forEach { host ->
-                val info = aspScriptletInfo(host) ?: return@forEach
-                val sourceRange = info.range.shiftRight(host.textRange.startOffset)
-                for (offset in sourceRange.startOffset until sourceRange.endOffset) {
-                    val injected = manager.findInjectedElementAt(file, offset) ?: continue
-                    injected.containingFile?.let(injectedFiles::add)
-                    break
-                }
-            }
-        return injectedFiles.sumOf { injected ->
-            PsiTreeUtil.collectElementsOfType(injected, PsiErrorElement::class.java).size
-        }
+        return PsiTreeUtil.collectElementsOfType(aspPsi, PsiErrorElement::class.java).size
+    }
+
+    fun testSafetyFingerprintActuallySeesNativeAspCode() {
+        val before = lexAspScriptlets("<% value = \"a b\" %>")
+        assertTrue("ASP fingerprint must contain executable tokens", before.size > 2)
+        assertFalse(before == lexAspScriptlets("<% value = \"ab\" %>"))
+        val broken = myFixture.configureByText("broken.asp", "<% Dim =\n%>")
+        assertTrue("Parser safety check must see native ASP errors", parseErrorCount(broken, "asp") > 0)
     }
 
     private fun firstDifference(before: String, after: String): String {
