@@ -13,6 +13,7 @@ import com.intellij.psi.impl.source.codeStyle.PostFormatProcessor
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptControlFlowTracker
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptIndentNormalizer
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptKeywordCaseSupport
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLexerAdapter
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 
@@ -36,7 +37,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
         return TextRange(rangeToReformat.startOffset, (rangeToReformat.endOffset + delta).coerceAtMost(source.textLength))
     }
 
-    override fun isWhitespaceOnly(): Boolean = true
+    override fun isWhitespaceOnly(): Boolean = false
 
     internal fun prepareCodeSpacing(file: PsiFile, settings: CodeStyleSettings) {
         if (!isProcessing.get()) formatVbScriptFragments(file, settings, formatSpacing = true)
@@ -48,6 +49,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val originalDocumentText = document.text
         isProcessing.set(true)
         try {
+            val keywordCase = VbScriptKeywordCaseSupport.mode(settings)
             val indentSize = settings.getCommonSettings(
                 dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
             ).indentOptions?.INDENT_SIZE ?: 4
@@ -83,14 +85,18 @@ class AspPostFormatProcessor : PostFormatProcessor {
             } else {
                 markedSource
             }
-            val formattedSource = VbScriptIndentNormalizer.normalizeText(spacedSource, indentSize)
+            val indentedSource = VbScriptIndentNormalizer.normalizeText(spacedSource, indentSize)
+            val formattedSource = VbScriptKeywordCaseSupport.normalizeText(
+                indentedSource,
+                keywordCase
+            )
 
             val replacements = fragments.mapIndexed { index, fragment ->
                 val formatted = extractFragment(formattedSource, index)
                     ?: return@mapIndexed fragment.originalContent
                 prepareForHost(fragment, formatted, controlProfiles[index], indentSize)
             }
-            if (!replacementsAreSafe(fragmentSnapshot, fragments, replacements)) {
+            if (!replacementsAreSafe(fragmentSnapshot, fragments, replacements, keywordCase)) {
                 LOG.warn("ASP formatting cancelled because scriptlet ranges or tokens changed")
                 restoreDocument(documentManager, document, originalDocumentText)
                 return
@@ -102,7 +108,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
             documentManager.commitDocument(document)
             if (!formatSpacing) applySemanticLayout(document, controlProfiles, indentSize)
             documentManager.commitDocument(document)
-            if (nonWhitespaceSkeleton(document.text) != nonWhitespaceSkeleton(originalDocumentText)) {
+            val expectedDocumentText = normalizeAspKeywordCase(originalDocumentText, keywordCase)
+            if (nonWhitespaceSkeleton(document.text) != nonWhitespaceSkeleton(expectedDocumentText)) {
                 LOG.warn("ASP formatting changed non-whitespace document content; rolling back scriptlet pass")
                 restoreDocument(documentManager, document, originalDocumentText)
             }
@@ -363,21 +370,37 @@ class AspPostFormatProcessor : PostFormatProcessor {
     private fun replacementsAreSafe(
         snapshot: String,
         fragments: List<Fragment>,
-        replacements: List<String>
+        replacements: List<String>,
+        keywordCase: Int
     ): Boolean {
         if (fragments.size != replacements.size) return false
         return fragments.indices.all { index ->
             val fragment = fragments[index]
             val range = fragment.contentRange
-            range.startOffset >= 0 && range.endOffset <= snapshot.length &&
+                range.startOffset >= 0 && range.endOffset <= snapshot.length &&
                 range.substring(snapshot) == fragment.originalContent &&
-                preservesVbScriptTokens(fragment.originalContent, replacements[index])
+                preservesVbScriptTokens(fragment.originalContent, replacements[index], keywordCase)
         }
     }
 
-    private fun preservesVbScriptTokens(before: String, after: String): Boolean {
-        return nonWhitespaceSkeleton(before) == nonWhitespaceSkeleton(after) &&
-            significantVbScriptTokens(before) == significantVbScriptTokens(after)
+    private fun preservesVbScriptTokens(before: String, after: String, keywordCase: Int): Boolean {
+        val expected = VbScriptKeywordCaseSupport.normalizeText(before, keywordCase)
+        return nonWhitespaceSkeleton(expected) == nonWhitespaceSkeleton(after) &&
+            significantVbScriptTokens(expected) == significantVbScriptTokens(after)
+    }
+
+    private fun normalizeAspKeywordCase(text: String, keywordCase: Int): String {
+        val fragments = collectFragments(text)
+        if (fragments.isEmpty()) return text
+        return buildString(text.length) {
+            var sourceOffset = 0
+            fragments.forEach { fragment ->
+                append(text, sourceOffset, fragment.contentRange.startOffset)
+                append(VbScriptKeywordCaseSupport.normalizeText(fragment.originalContent, keywordCase))
+                sourceOffset = fragment.contentRange.endOffset
+            }
+            append(text, sourceOffset, text.length)
+        }
     }
 
     private fun significantVbScriptTokens(text: String): List<Pair<String, String>> {

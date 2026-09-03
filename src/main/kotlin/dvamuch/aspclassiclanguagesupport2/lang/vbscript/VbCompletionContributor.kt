@@ -7,6 +7,7 @@ import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.completion.PrioritizedLookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.application.options.CodeStyle
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -73,7 +74,14 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
             return
         }
 
-        keywords.forEach { keyword -> result.addElement(lookup(keyword, "VBScript keyword")) }
+        val keywordCase = position.containingFile?.let(CodeStyle::getSettings)
+            ?.let(VbScriptKeywordCaseSupport::mode)
+            ?: VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
+        keywords.forEach { keyword ->
+            result.addElement(
+                lookup(VbScriptKeywordCaseSupport.normalizeCompletion(keyword, keywordCase), "VBScript keyword")
+            )
+        }
         builtInGlobals.forEach { name -> result.addElement(lookup(name, "VBScript/ASP built-in")) }
 
         val expectedParameterType = VbCallSignatureSupport.contextAt(position, parameters.offset)

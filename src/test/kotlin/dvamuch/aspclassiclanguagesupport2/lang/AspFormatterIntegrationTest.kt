@@ -1,14 +1,50 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.ide.highlighter.HtmlFileType
+import com.intellij.application.options.CodeStyle
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 
 class AspFormatterIntegrationTest : BasePlatformTestCase() {
+    fun testAppliesKeywordCaseAcrossAspScriptletsOnly() {
+        val source = """
+            <div data-label="if else end if">
+            <%
+            iF ready tHeN
+            Response.Write "else end if"
+            %>
+            <span>else end if</span>
+            <%
+            eLsE
+            Response.Write "if then"
+            EnD iF
+            %>
+            </div>
+        """.trimIndent()
+        val file = myFixture.configureByText(AspFileType, source)
+        val customSettings = CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+        val previousMode = customSettings.KEYWORD_CASE
+        try {
+            customSettings.KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE
+            reformat(file)
+            assertTrue(file.text.contains("If ready Then"))
+            assertTrue(file.text, Regex("(?m)^[ \\t]*Else[ \\t]*$").containsMatchIn(file.text))
+            assertTrue(file.text.contains("End If"))
+            assertTrue(file.text.contains("data-label=\"if else end if\""))
+            assertTrue(file.text.contains("<span>else end if</span>"))
+            assertTrue(file.text.contains("\"else end if\""))
+            assertTrue(file.text.contains("\"if then\""))
+        } finally {
+            customSettings.KEYWORD_CASE = previousMode
+        }
+    }
+
     fun testHtmlWrappingUsesFinalAspExpressionWidth() {
         for (padding in 40..60) {
             val source = "<div><input title=\"${"x".repeat(padding)}\" value=\"<%=Session(\"UserID\")%>\" size=\"32\"></div>"

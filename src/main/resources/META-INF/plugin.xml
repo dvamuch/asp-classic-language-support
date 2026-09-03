@@ -43,6 +43,10 @@
                              implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFoldingBuilder"/>
         <lang.formatter language="VBScript"
                         implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFormattingModelBuilder"/>
+        <codeStyleSettingsProvider
+                implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettingsFactory"/>
+        <langCodeStyleSettingsProvider
+                implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettingsProvider"/>
         <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptIndentPostFormatProcessor"
                              order="last"/>
         <lang.psiStructureViewFactory language="VBScript"

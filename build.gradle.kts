@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "v0.0.5"
+version = "v0.0.6"
 
 repositories {
     mavenCentral()
@@ -36,9 +36,9 @@ intellijPlatform {
         }
 
         changeNotes = """
-            PhpStorm 2026.1 compatibility and safer mixed ASP/HTML formatting.
-            Fixes embedded JavaScript formatting, inline ASP control flow, delimiter whitespace drift,
-            and false VBScript line continuations caused by internal fragment markers.
+            Adds configurable VBScript keyword casing for .vbs, .asp and .inc files.
+            Choose Preserve existing, lower case or Title Case under Editor | Code Style | VBScript.
+            The selected style is shared by formatting and keyword completion.
         """.trimIndent()
     }
 }
