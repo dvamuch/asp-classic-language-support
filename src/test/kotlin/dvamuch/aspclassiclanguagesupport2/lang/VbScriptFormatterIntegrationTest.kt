@@ -6,6 +6,15 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 
 class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
+    fun testCommentEndingInUnderscoreDoesNotContinueCode() {
+        for (comment in listOf("' __marker__", "Rem comment_")) {
+            assertReformatted(
+                "$comment\nIf ready Then\nvalue=1\nEnd If",
+                "$comment\nIf ready Then\n    value = 1\nEnd If"
+            )
+        }
+    }
+
     fun testFormatsNestedBlocksAndBinaryOperators() {
         assertReformatted(
             """

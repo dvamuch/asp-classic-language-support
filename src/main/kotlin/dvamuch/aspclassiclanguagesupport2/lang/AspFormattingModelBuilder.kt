@@ -32,7 +32,7 @@ class AspFormattingModelBuilder : AbstractXmlTemplateFormattingModelBuilder() {
         node: ASTNode,
         settings: CodeStyleSettings,
         xmlFormattingPolicy: XmlFormattingPolicy,
-        indent: Indent,
+        indent: Indent?,
         alignment: Alignment?,
         wrap: Wrap?
     ): TemplateLanguageBlock {
@@ -43,7 +43,8 @@ class AspFormattingModelBuilder : AbstractXmlTemplateFormattingModelBuilder() {
             alignment = alignment,
             settings = settings,
             xmlFormattingPolicy = xmlFormattingPolicy,
-            indent = indent
+            // Embedded formatters (e.g. JavaScript in <script>) may not supply an indent.
+            indent = indent ?: Indent.getNoneIndent()
         )
     }
 
