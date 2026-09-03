@@ -17,6 +17,7 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
     - Special highlighting for variables (identifiers) to improve readability.
 - **Multi-Host Injection**: Properly handles multiple scriptlet blocks as a single VBScript context.
 - **Basic HTML Support**: HTML parts of the ASP files are handled by the IDE's built-in HTML support.
+- **Keyword Case Style**: `Editor | Code Style | VBScript` can preserve keyword case or enforce `lower case` / `Title Case` in formatting and completion.
 - **VBScript Navigation**: "Jump to Definition" for scope-aware local symbols and top-level symbols from direct or nested includes.
 - **Include Navigation**: Resolves `file` and `virtual` paths in `<!-- #include ... -->` directives.
 

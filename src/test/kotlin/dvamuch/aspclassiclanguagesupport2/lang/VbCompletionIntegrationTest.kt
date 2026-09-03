@@ -1,11 +1,28 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.codeInsight.lookup.LookupElementPresentation
+import com.intellij.application.options.CodeStyle
 import com.intellij.psi.PsiFile
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 
 class VbCompletionIntegrationTest : BasePlatformTestCase() {
+    fun testKeywordCompletionUsesConfiguredCase() {
+        val file = myFixture.configureByText(VbScriptFileType, "<caret>")
+        val customSettings = CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+        val previousMode = customSettings.KEYWORD_CASE
+        try {
+            customSettings.KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER
+            val variants = completionVariants()
+            assertContainsElements(variants, "if", "else", "end if", "option explicit")
+            assertFalse(variants.contains("End If"))
+        } finally {
+            customSettings.KEYWORD_CASE = previousMode
+        }
+    }
+
     fun testCompletesKeywordsAndBuiltInGlobals() {
         myFixture.configureByText(VbScriptFileType, "<caret>")
 

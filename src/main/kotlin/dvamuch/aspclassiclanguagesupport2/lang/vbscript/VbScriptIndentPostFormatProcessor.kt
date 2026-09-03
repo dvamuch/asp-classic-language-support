@@ -23,7 +23,7 @@ class VbScriptIndentPostFormatProcessor : PostFormatProcessor {
         return TextRange(rangeToReformat.startOffset, (rangeToReformat.endOffset + delta).coerceAtMost(source.textLength))
     }
 
-    override fun isWhitespaceOnly(): Boolean = true
+    override fun isWhitespaceOnly(): Boolean = false
 
     private fun runGuarded(action: () -> Unit) {
         isProcessing.set(true)
@@ -44,7 +44,11 @@ internal object VbScriptIndentNormalizer {
         val documentManager = PsiDocumentManager.getInstance(file.project)
         val document = documentManager.getDocument(file) ?: return
         val indentSize = settings.getCommonSettings(VbScriptLanguage).indentOptions?.INDENT_SIZE ?: 4
-        val normalized = normalizeText(document.text, indentSize)
+        val indented = normalizeText(document.text, indentSize)
+        val normalized = VbScriptKeywordCaseSupport.normalizeText(
+            indented,
+            VbScriptKeywordCaseSupport.mode(settings)
+        )
         if (normalized == document.text) return
         document.replaceString(0, document.textLength, normalized)
         documentManager.commitDocument(document)

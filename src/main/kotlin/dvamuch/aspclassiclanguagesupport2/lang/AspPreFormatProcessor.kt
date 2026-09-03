@@ -15,5 +15,5 @@ class AspPreFormatProcessor : PreFormatProcessor {
         return TextRange(0, (range.endOffset + file.textLength - oldLength).coerceAtMost(file.textLength))
     }
 
-    override fun changesWhitespacesOnly(): Boolean = true
+    override fun changesWhitespacesOnly(): Boolean = false
 }

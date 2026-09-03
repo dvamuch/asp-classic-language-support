@@ -1,11 +1,36 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.application.options.CodeStyle
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
 
 class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
+    fun testPreservesKeywordCaseByDefault() {
+        assertReformatted(
+            "iF ready tHeN\nvalue=1\neLsE\nvalue=2\nEnD iF",
+            "iF ready tHeN\n    value = 1\neLsE\n    value = 2\nEnD iF"
+        )
+    }
+
+    fun testFormatsAllKeywordsInLowerCaseWithoutChangingStringsCommentsOrMembers() {
+        assertKeywordCase(
+            VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER,
+            "If ready Then\nResponse.If = \"Else End If\"\n' Else End If\nElseIf pending Then\nEnd If",
+            "if ready then\n    Response.If = \"Else End If\"\n    ' Else End If\nelseif pending then\nend if"
+        )
+    }
+
+    fun testFormatsAllKeywordsInTitleCase() {
+        assertKeywordCase(
+            VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE,
+            "option explicit\nif ready then\nredim preserve values(1)\nelseif pending then\nexecuteglobal code\nend if",
+            "Option Explicit\nIf ready Then\n    ReDim Preserve values(1)\nElseIf pending Then\n    ExecuteGlobal code\nEnd If"
+        )
+    }
+
     fun testCommentEndingInUnderscoreDoesNotContinueCode() {
         for (comment in listOf("' __marker__", "Rem comment_")) {
             assertReformatted(
@@ -265,6 +290,22 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
         val file = myFixture.configureByText(VbScriptFileType, before)
         reformat(file)
         assertEquals(after, file.text)
+    }
+
+    private fun assertKeywordCase(mode: Int, before: String, after: String) {
+        val file = myFixture.configureByText(VbScriptFileType, before)
+        val customSettings = CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+        val previousMode = customSettings.KEYWORD_CASE
+        try {
+            customSettings.KEYWORD_CASE = mode
+            reformat(file)
+            assertEquals(after, file.text)
+            reformat(file)
+            assertEquals("Keyword case formatting must be idempotent", after, file.text)
+        } finally {
+            customSettings.KEYWORD_CASE = previousMode
+        }
     }
 
     private fun reformat(file: com.intellij.psi.PsiFile) {
