@@ -36,8 +36,9 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Makes file-reference case corrections safe inside compound ASP href/src attributes.
-            Applying Rename file reference now changes only the static path and preserves the embedded ASP expression.
+            Makes platform HTML quick-fixes safe inside compound ASP attributes.
+            File-reference case corrections and HTTP-to-HTTPS actions now change only their static ranges and preserve embedded ASP expressions.
+            Generic HTML edits that would cross an ASP scriptlet are rejected without changing the document.
             Also stabilizes repeated formatting of nested ASP blocks containing blank lines.
         """.trimIndent()
     }
