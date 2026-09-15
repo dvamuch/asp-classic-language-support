@@ -1,0 +1,63 @@
+package dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi
+
+import com.intellij.lang.injection.InjectedLanguageManager
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
+import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
+
+internal object VbIncludeSymbolResolver {
+    fun resolve(usage: VbId, name: String): PsiElement? {
+        for (includedFile in includedVbScriptFiles(usage)) {
+            val declarations = VbFileSymbolTable.get(includedFile)
+                .declarations(name)
+                .filter { it.scope is PsiFile }
+
+            val explicit = declarations
+                .filter { !it.implicit }
+                .maxByOrNull { it.id.textOffset }
+            if (explicit != null) return hostTarget(includedFile, explicit.id)
+
+            val implicit = declarations
+                .filter { it.implicit }
+                .maxByOrNull { it.id.textOffset }
+            if (implicit != null) return hostTarget(includedFile, implicit.id)
+        }
+        return null
+    }
+
+    internal fun includedVbScriptFiles(context: PsiElement): List<PsiFile> {
+        val manager = InjectedLanguageManager.getInstance(context.project)
+        val topLevelFile = manager.getTopLevelFile(context).originalFile
+        val sourceAspFile = VbAspPsiUtil.aspPsi(topLevelFile) ?: return emptyList()
+        return CachedValuesManager.getCachedValue(sourceAspFile) {
+            CachedValueProvider.Result.create(
+                buildIncludedVbScriptFiles(sourceAspFile),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
+    }
+
+    private fun buildIncludedVbScriptFiles(sourceAspFile: PsiFile): List<PsiFile> {
+        val visited = mutableSetOf(fileKey(sourceAspFile))
+        val result = mutableListOf<PsiFile>()
+
+        fun visit(aspFile: PsiFile) {
+            for (includedAspFile in AspIncludeGraph.directIncludes(aspFile)) {
+                if (!visited.add(fileKey(includedAspFile))) continue
+                result += AspVbScriptContext.getForAspFile(includedAspFile).analysisFile
+                visit(includedAspFile)
+            }
+        }
+
+        visit(sourceAspFile)
+        return result
+    }
+    private fun hostTarget(file: PsiFile, id: VbId): PsiElement {
+        return AspVbScriptContext.forAnalysisFile(file)?.hostIdForAnalysis(id) ?: id
+    }
+    private fun fileKey(file: PsiFile): String = file.viewProvider.virtualFile.url
+}

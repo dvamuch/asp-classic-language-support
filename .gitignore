@@ -1,9 +1,7 @@
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
+.intellijPlatform/
 *.iws
 *.iml
 *.ipr
@@ -25,9 +23,11 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .kotlin
+.junie/
 test-asp-project
 /src/main/gen/
 /src/main/grammar/test.bnf
 /src/main/kotlin/dvamuch/aspclassiclanguagesupport2/lang/AspDumpPsiAction.kt
 
-/.intellijPlatform/
+# Local symlink to large external ASP project used for diagnostics
+/src/test/testData/asp/external-project
