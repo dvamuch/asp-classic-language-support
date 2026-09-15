@@ -265,6 +265,11 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 line
             } else if (index == lines.lastIndex && line.all { it == ' ' || it == '\t' }) {
                 baseIndent + " ".repeat(closingExtraIndent)
+            } else if (line.all { it == ' ' || it == '\t' }) {
+                // Indentation on an otherwise empty line is not semantic and must
+                // not be fed back into the next formatter pass. Keeping it here
+                // made nested scriptlets gain or lose spaces on every reformat.
+                ""
             } else if (line.isNotEmpty() || index == lines.lastIndex) {
                 baseIndent + line
             } else {
