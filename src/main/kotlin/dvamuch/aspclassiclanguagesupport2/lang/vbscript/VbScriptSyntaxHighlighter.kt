@@ -16,7 +16,7 @@ class VbScriptSyntaxHighlighter : SyntaxHighlighter {
 
     override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> {
         return when {
-            KEYWORDS.contains(tokenType) -> KEYWORD_KEYS
+            VbScriptKeywordCaseSupport.tokenSet.contains(tokenType) -> KEYWORD_KEYS
             OPERATORS.contains(tokenType) -> OPERATOR_KEYS
             COMMENTS.contains(tokenType) -> COMMENT_KEYS
             LITERALS.contains(tokenType) -> LITERAL_KEYS
@@ -28,26 +28,6 @@ class VbScriptSyntaxHighlighter : SyntaxHighlighter {
     }
 
     companion object {
-        private val KEYWORDS = TokenSet.create(
-            VbTypes.OPTION, VbTypes.EXPLICIT, VbTypes.DIM, VbTypes.CONST,
-            VbTypes.PUBLIC_KW, VbTypes.PRIVATE_KW,
-            VbTypes.CLASS, VbTypes.END,
-            VbTypes.FUNCTION, VbTypes.SUB, VbTypes.PROPERTY,
-            VbTypes.GET, VbTypes.LET, VbTypes.SET,
-            VbTypes.IF, VbTypes.THEN, VbTypes.ELSE, VbTypes.ELSEIF,
-            VbTypes.SELECT, VbTypes.CASE,
-            VbTypes.FOR, VbTypes.EACH, VbTypes.IN, VbTypes.TO, VbTypes.STEP, VbTypes.NEXT,
-            VbTypes.DO, VbTypes.LOOP, VbTypes.WHILE, VbTypes.UNTIL, VbTypes.WEND,
-            VbTypes.WITH,
-            VbTypes.EXIT,
-            VbTypes.ON, VbTypes.ERROR, VbTypes.RESUME, VbTypes.GOTO,
-            VbTypes.REDIM, VbTypes.PRESERVE, VbTypes.ERASE,
-            VbTypes.EXECUTE, VbTypes.EXECUTEGLOBAL,
-            VbTypes.CALL, VbTypes.NEW,
-            VbTypes.BYVAL, VbTypes.BYREF, VbTypes.OPTIONAL,
-            VbTypes.AND, VbTypes.OR, VbTypes.NOT, VbTypes.XOR, VbTypes.EQV, VbTypes.IMP, VbTypes.IS
-        )
-
         private val OPERATORS = TokenSet.create(
             VbTypes.PLUS, VbTypes.MINUS, VbTypes.STAR, VbTypes.SLASH, VbTypes.IDIV, VbTypes.POW,
             VbTypes.AMP, VbTypes.EQ, VbTypes.NEQ, VbTypes.LT, VbTypes.GT, VbTypes.LE, VbTypes.GE

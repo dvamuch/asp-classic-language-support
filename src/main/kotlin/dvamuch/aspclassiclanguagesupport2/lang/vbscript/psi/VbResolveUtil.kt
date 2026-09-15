@@ -1,43 +1,85 @@
 package dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi
 
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.PsiFile
+import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
 
 object VbResolveUtil {
     fun resolve(id: VbId): PsiElement? {
         val name = (id as? VbNamedElement)?.name ?: return null
+        resolveInFile(id, name)?.let { return it }
+
+        val hostLocation = VbAspPsiUtil.hostLocation(id)
+        val aspContext = AspVbScriptContext.get(id)
+        if (hostLocation != null && aspContext != null) {
+            val analysisId = aspContext.analysisIdAtHostOffset(hostLocation.offset)
+            if (analysisId != null) {
+                val analysisTarget = resolveInFile(analysisId, name)
+                if (analysisTarget is VbId) {
+                    aspContext.hostIdForAnalysis(analysisTarget)?.let { return it }
+                }
+            }
+        }
+
+        return VbIncludeSymbolResolver.resolve(id, name)
+    }
+
+    private fun resolveInFile(id: VbId, name: String): PsiElement? {
         val file = id.containingFile ?: return null
-        val offset = id.textOffset
+        val visibleScopes = visibleScopes(id)
 
-        val candidates = PsiTreeUtil.collectElementsOfType(file, VbId::class.java)
-            .filter { it.textOffset < offset }
-            .filter { (it as? VbNamedElement)?.name.equals(name, ignoreCase = true) }
-            .filter { isDeclaration(it) }
+        val declarations = VbFileSymbolTable.get(file).declarations(name)
+            .asSequence()
+            .filter { it.id !== id }
+            .filter { it.scope in visibleScopes }
+            .toList()
 
-        return candidates.maxByOrNull { it.textOffset }
+        val nearestScope = declarations.minOfOrNull { visibleScopes.indexOf(it.scope) }
+        if (nearestScope != null) {
+            val scopedDeclarations = declarations.filter { visibleScopes.indexOf(it.scope) == nearestScope }
+            val explicitDeclarations = scopedDeclarations.filter { !it.implicit }
+            if (explicitDeclarations.isNotEmpty()) {
+                return chooseExplicitDeclaration(explicitDeclarations, id.textOffset)?.id
+            }
+
+            val implicitDeclaration = scopedDeclarations
+                .filter { it.implicit && it.id.textOffset < id.textOffset }
+                .maxByOrNull { it.id.textOffset }
+            if (implicitDeclaration != null) return implicitDeclaration.id
+        }
+
+        return null
     }
 
-    private fun isDeclaration(id: VbId): Boolean {
+    fun isReferenceCandidate(id: VbId): Boolean {
+        val declaration = VbDeclarationUtil.declaration(id)
+        if (declaration != null && !declaration.implicit) return false
+
         val parent = id.parent
-        return parent is VbVarDecl ||
-            parent is VbConstDecl ||
-            parent is VbParam ||
-            parent is VbFunctionStmt ||
-            parent is VbSubStmt ||
-            parent is VbPropertyStmt ||
-            parent is VbClassStmt ||
-            isImplicitAssignmentDeclaration(id)
+        if (parent is VbPostfixSuffix) return false
+        if (parent is VbWithMemberRefExpr || parent is VbWithQualifiedIdentifier) return false
+        if (parent is VbQualifiedIdentifier && parent.idList.firstOrNull() != id) return false
+        return true
     }
 
-    private fun isImplicitAssignmentDeclaration(id: VbId): Boolean {
-        val qualified = id.parent as? VbQualifiedIdentifier ?: return false
-        val lvalue = qualified.parent as? VbLvalue ?: return false
-        val assignment = lvalue.parent as? VbAssignmentStmt ?: return false
+    internal fun visibleScopes(place: PsiElement): List<PsiElement> {
+        val scopes = mutableListOf<PsiElement>()
+        var current: PsiElement? = place.parent
+        while (current != null) {
+            if (VbDeclarationUtil.isScope(current)) scopes.add(current)
+            if (current is PsiFile) break
+            current = current.parent
+        }
+        return scopes
+    }
 
-        val ids = qualified.idList
-        if (ids.size != 1 || ids[0] != id) return false
-
-        // Treat bare assignments (including SET/LET) as implicit declarations.
-        return assignment.textOffset <= id.textOffset
+    private fun chooseExplicitDeclaration(
+        declarations: List<VbDeclaration>,
+        usageOffset: Int
+    ): VbDeclaration? {
+        return declarations
+            .filter { it.id.textOffset < usageOffset }
+            .maxByOrNull { it.id.textOffset }
+            ?: declarations.minByOrNull { it.id.textOffset }
     }
 }

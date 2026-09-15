@@ -17,6 +17,7 @@ import static dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes.*;
 %type IElementType
 
 %state IN_PAREN
+%state AFTER_DOT
 
 %{
   private int parenDepth = 0;
@@ -28,8 +29,8 @@ WS = [ \t\f]+
 IDENTIFIER = [A-Za-z_][A-Za-z0-9_]*
 NUMBER = [0-9]+
 FLOAT = [0-9]+"."[0-9]+
-HEX_NUMBER = "&H"[0-9A-F]+
-OCT_NUMBER = "&O"[0-7]+
+HEX_NUMBER = "&"[Hh][0-9A-Fa-f]+
+OCT_NUMBER = "&"[Oo][0-7]+
 STRING = \"([^\"\r\n]|\"\")*\"
 SINGLE_STRING = \'([^\'\r\n]|\'\')*\'
 DATE = \#[^#\r\n]*\#
@@ -46,11 +47,21 @@ REM_COMMENT = "rem"[ \t][^\r\n]*
 <YYINITIAL>{COMMENT} { return COMMENT; }
 {REM_COMMENT} { return COMMENT; }
 
+<AFTER_DOT>{WS} { return WHITE_SPACE; }
+<AFTER_DOT>{IDENTIFIER} {
+  if (parenDepth > 0) yybegin(IN_PAREN); else yybegin(YYINITIAL);
+  return IDENTIFIER;
+}
+<AFTER_DOT>. {
+  if (parenDepth > 0) yybegin(IN_PAREN); else yybegin(YYINITIAL);
+  yypushback(1);
+}
+
 <YYINITIAL,IN_PAREN>"(" { parenDepth++; yybegin(IN_PAREN); return LPAREN; }
 <YYINITIAL,IN_PAREN>")" { if (parenDepth > 0) parenDepth--; if (parenDepth == 0) yybegin(YYINITIAL); return RPAREN; }
 "," { return COMMA; }
 ":" { return COLON; }
-"." { return DOT; }
+"." { yybegin(AFTER_DOT); return DOT; }
 "=" { return EQ; }
 "<>" { return NEQ; }
 "<=" { return LE; }
@@ -71,6 +82,7 @@ REM_COMMENT = "rem"[ \t][^\r\n]*
 "const" { return CONST; }
 "public" { return PUBLIC_KW; }
 "private" { return PRIVATE_KW; }
+"default" { return DEFAULT; }
 "class" { return CLASS; }
 "end" { return END; }
 "function" { return FUNCTION; }

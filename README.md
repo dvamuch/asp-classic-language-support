@@ -17,19 +17,22 @@ Currently, the plugin provides basic support for ASP files using the VBScript en
     - Special highlighting for variables (identifiers) to improve readability.
 - **Multi-Host Injection**: Properly handles multiple scriptlet blocks as a single VBScript context.
 - **Basic HTML Support**: HTML parts of the ASP files are handled by the IDE's built-in HTML support.
-- **Basic Navigation**: "Jump to Definition" for local variables and functions within the same file (experimental).
+- **Keyword Case Style**: `Editor | Code Style | VBScript` can preserve keyword case or enforce `lower case` / `Title Case` in formatting and completion.
+- **VBScript Navigation**: "Jump to Definition" for scope-aware local symbols and top-level symbols from direct or nested includes.
+- **Include Navigation**: Resolves `file` and `virtual` paths in `<!-- #include ... -->` directives.
 
 ### Visual Demonstration
-<!-- Placeholder for Demo GIF/Image -->
 ![ASP Classic Support Demo](./media/demo.png)
 *Support for syntax highlighting and scriptlet blocks.*
 
 ## Roadmap (Planned Features)
-- [ ] **Full Symbol Resolve**: Improved cross-file navigation and support for `Server.CreateObject`.
-- [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
-- [ ] **Include Support**: Resolve files included via `<!-- #include ... -->`.
+- [ ] **Performance**: Keep editing and language injection responsive in large legacy files.
+- [x] **Include Navigation**: Resolve `file` and `virtual` paths in `<!-- #include ... -->`.
+- [x] **Include-aware Symbol Navigation**: Resolve top-level symbols through direct, nested, `file`, and `virtual` includes.
 - [ ] **Formatters**: Basic code formatting for VBScript blocks.
-- [ ] **Debugger**: Integration with Windows debugging tools (high complexity).
+- [ ] **Editor Essentials**: Commenting, folding, structure view, and block matching.
+- [ ] **Code Completion**: Basic IntelliSense for VBScript and built-in ASP objects (`Request`, `Response`, `Session`, etc.).
+- [ ] **Go To Definition (Advanced)**: Add indexed project symbols, class-member resolution, and richer `With` support.
 
 ## Contributing
 
@@ -41,10 +44,38 @@ If you want to help:
 3. **Suggestions**: Have an idea for a feature? Let's discuss it in the Issues.
 
 ### Development Note
-This project uses Gradle. You can run the IDE with the plugin enabled using:
+
+The development and test target is **PhpStorm 2026.1.2 (PS-261.24374.185)**.
+New builds require platform 261.24374 or later; compatibility with 2025.2 is
+no longer claimed. The Gradle wrapper uses Java 21+; the test IDE runs with
+its JetBrains Runtime. Kotlin is 2.3.20 and is not bundled in the plugin ZIP.
+
+Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
+
 ```bash
+./gradlew test
+./gradlew buildPlugin
 ./gradlew runIde
 ```
+
+To reuse an existing installation instead of downloading PhpStorm, pass
+`-PlocalIdePath=/absolute/path/to/PhpStorm.app/Contents` to any of these commands.
+The installation is read as an SDK; tests use a separate sandbox, not your
+working IDE profile. `AspPlatformCompatibilityTest` asserts the exact test build.
+
+The optional TTS formatter audit only reads source files and reformats in-memory
+copies. Run bounded batches with immediate per-file progress:
+
+```bash
+./gradlew test --tests '*AspTtsFormattingSafetyTest' \
+  -PttsProjectDir=/absolute/path/to/TTS -PttsPathFilter=Bugs/ \
+  -PttsBatchSize=100 -PttsBatchIndex=0
+```
+
+For real editor actions, selections, Undo, and important large files, run
+`*AspEditorReformatSafetyTest` and `*AspFormattingModelSafetyTest` with
+`-PttsProjectDir`. Their external-file cases need that property; a normal
+`test` run does not constitute a TTS corpus audit.
 
 ## License
 Distributed under the Apache License 2.0. See `LICENSE` for more information.

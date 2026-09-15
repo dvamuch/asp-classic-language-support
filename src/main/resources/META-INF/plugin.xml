@@ -16,8 +16,8 @@
         An IntelliJ Platform plugin that adds support for ASP Classic files with VBScript engine (.asp, .inc).
         Current state:
         — HTML part is handled by the IDE;
-        — VBScript code in ASP Blocks has basic highlighting;
-        — Multi-host injection allows handling multiple scriptlet blocks as a single context.
+        — ASP/VBScript has highlighting, navigation, usages, completion and formatting;
+        — a native file-wide PSI keeps multiple scriptlet blocks in one VBScript context.
 
         Even in this state it helps a lot while working with old legacy codebases.
     </description>
@@ -27,10 +27,12 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.xml</depends>
 
-    <resource-bundle>messages.MyMessageBundle</resource-bundle>
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
+        <lang.elementManipulator forClass="com.intellij.psi.xml.XmlAttributeValue"
+                                 implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspXmlAttributeValueManipulator"
+                                 order="first"/>
         <fileType name="VBScript" language="VBScript"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType"
                   fieldName="INSTANCE" extensions="vbs"/>
@@ -38,21 +40,52 @@
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptParserDefinition"/>
         <lang.syntaxHighlighterFactory language="VBScript"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
+        <lang.commenter language="VBScript"
+                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCommenter"/>
+        <lang.foldingBuilder language="VBScript"
+                             implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFoldingBuilder"/>
+        <lang.formatter language="VBScript"
+                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFormattingModelBuilder"/>
+        <codeStyleSettingsProvider
+                implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettingsFactory"/>
+        <langCodeStyleSettingsProvider
+                implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettingsProvider"/>
+        <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptIndentPostFormatProcessor"
+                             order="last"/>
+        <lang.psiStructureViewFactory language="VBScript"
+                                      implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbStructureViewFactory"/>
+        <completion.contributor language="VBScript"
+                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbCompletionContributor"/>
+        <codeInsight.parameterInfo language="VBScript"
+                                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbParameterInfoHandler"/>
         <psi.referenceContributor language="VBScript"
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbReferenceContributor"/>
+        <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbFindUsagesHandlerFactory"/>
+        <psi.referenceContributor language="HTML"
+                                  implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeReferenceContributor"/>
+        <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspFileFindUsagesHandlerFactory"/>
+        <customUsageSearcher implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeCustomUsageSearcher"/>
+        <heavyBracesHighlighter implementation="dvamuch.aspclassiclanguagesupport2.lang.VbKeywordBraceHighlighter"/>
+        <fileBasedIndex implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeIndex"/>
         <fileType name="ASP" language="ASP"
                   implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileType"
                   fieldName="INSTANCE" extensions="asp;inc"/>
         <lang.parserDefinition language="ASP"
                                implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspParserDefinition"/>
+        <lang.formatter language="ASP"
+                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFormattingModelBuilder"/>
         <lang.fileViewProviderFactory language="ASP"
                                       implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFileViewProviderFactory"/>
         <editorHighlighterProvider filetype="ASP"
                                    implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspEditorHighlighterProvider"/>
         <lang.syntaxHighlighterFactory language="ASP"
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspSyntaxHighlighterFactory"/>
-        <multiHostInjector implementation="dvamuch.aspclassiclanguagesupport2.lang.AspScriptletMultiHostInjector"/>
-        <toolWindow id="MyToolWindow" factoryClass="dvamuch.aspclassiclanguagesupport2.MyToolWindowFactory"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+        <lang.foldingBuilder language="ASP"
+                             implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspFoldingBuilder"/>
+        <lang.psiStructureViewFactory language="ASP"
+                                      implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspStructureViewFactory"/>
+        <preFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPreFormatProcessor"/>
+        <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPostFormatProcessor"
+                             order="last"/>
     </extensions>
 </idea-plugin>
