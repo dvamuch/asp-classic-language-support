@@ -4,12 +4,65 @@ import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** Exercises the real editor Reformat Code action against a clean Git revision. */
 class AspEditorReformatSafetyTest : BasePlatformTestCase() {
+    fun testBugInfoQuotedExpressionInsideHtmlAttribute() {
+        val ttsRoot = System.getProperty(TTS_PROJECT_DIR_PROPERTY) ?: return
+        val source = readGitHead(Path.of(ttsRoot), "Bugs/BugInfo.asp").replace(
+            "link=\"http://tts.naukanet.ru/files/filedownload.asp?",
+            "link=\"https://tts.naukanet.ru/files/filedownload.asp?"
+        )
+        val target = "link=\"https://tts.naukanet.ru/files/filedownload.asp?<%=\"FileID=\" & rsFiles(\"FileID\") %>\""
+        val targetOffset = source.indexOf(target)
+        assertTrue("Expected the file-download ASP expression in Bugs/BugInfo.asp", targetOffset >= 0)
+        val file = myFixture.configureByText("BugInfo.asp", source)
+        myFixture.editor.caretModel.moveToOffset(0)
+        myFixture.editor.scrollingModel.scrollVertically(0)
+
+        val before = source.filterNot(Char::isWhitespace)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val afterFirstPass = file.text
+
+        assertEquals("Reformat Code changed non-whitespace characters in Bugs/BugInfo.asp", before, file.text.filterNot(Char::isWhitespace))
+        assertTrue(file.text, file.text.contains("<%= \"FileID=\" & rsFiles(\"FileID\") %>"))
+
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val afterSecondPass = file.text
+        if (afterFirstPass != afterSecondPass) {
+            val reportDirectory = Path.of("build/reports/buginfo-idempotence")
+            Files.createDirectories(reportDirectory)
+            Files.writeString(reportDirectory.resolve("first-pass.asp"), afterFirstPass)
+            Files.writeString(reportDirectory.resolve("second-pass.asp"), afterSecondPass)
+        }
+        assertEquals("A second Reformat Code pass changed Bugs/BugInfo.asp", afterFirstPass, afterSecondPass)
+    }
+
+    fun testBugInfoEditorActionMatchesDirectFormatter() {
+        val ttsRoot = System.getProperty(TTS_PROJECT_DIR_PROPERTY) ?: return
+        val source = readGitHead(Path.of(ttsRoot), "Bugs/BugInfo.asp")
+
+        val actionFile = myFixture.configureByText("BugInfo-action.asp", source)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val actionResult = actionFile.text
+
+        val directFile = myFixture.configureByText("BugInfo-direct.asp", source)
+        WriteCommandAction.runWriteCommandAction(project) {
+            CodeStyleManager.getInstance(project).reformat(directFile)
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals("Editor Reformat Code and CodeStyleManager.reformat produced different results", actionResult, directFile.text)
+    }
+
     fun testBugsIndexWithViewerBlockOutsideViewport() {
         assertEditorReformatPreservesHealthyBugsIndex(targetVisible = false)
     }

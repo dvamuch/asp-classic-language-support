@@ -139,6 +139,22 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testPreservesQuotedExpressionInsideLongHtmlAttribute() {
+        val source = """
+            <img style="cursor:pointer;" title="Скопировать адрес в буфер обмена" alt="Скопировать адрес в буфер обмена" src="/images/copy2buff.gif" width="16" height="16" onClick="copylinkToClipboard(this)" link="http://tts.naukanet.ru/files/filedownload.asp?<%="FileID=" & rsFiles("FileID") %>">
+        """.trimIndent()
+        val file = myFixture.configureByText("buginfo-regression.asp", source)
+
+        reformat(file)
+
+        assertEquals(
+            "Formatting an ASP expression inside an HTML attribute must preserve every non-whitespace character",
+            source.filterNot(Char::isWhitespace),
+            file.text.filterNot(Char::isWhitespace)
+        )
+        assertTrue(file.text, file.text.contains("<%= \"FileID=\" & rsFiles(\"FileID\") %>"))
+    }
+
     fun testKeepsVbScriptIndentationAcrossHtmlBetweenScriptlets() {
         assertReformatted(
             """
@@ -166,6 +182,40 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
             </div>
             """.trimIndent()
         )
+    }
+
+    fun testNestedBranchesWithBlankLinesAreIdempotent() {
+        val source = """
+            <table>
+            <%
+            If firstCondition Then
+
+              Dim firstValue
+
+              If nestedCondition Then
+                %>
+                <tr><td><%=firstValue%></td></tr>
+                <%
+              End If
+            End If
+
+            ' A second branch after HTML exposed blank-line indent feedback.
+            If secondCondition Then
+              Dim secondValue
+
+              secondValue=1
+            End If
+            %>
+            </table>
+        """.trimIndent()
+        val file = myFixture.configureByText("nested-blank-lines.asp", source)
+
+        reformat(file)
+        val afterFirstPass = file.text
+        reformat(file)
+
+        assertEquals("Blank lines in nested ASP branches must settle in one pass", afterFirstPass, file.text)
+        assertEquals(source.filterNot(Char::isWhitespace), file.text.filterNot(Char::isWhitespace))
     }
 
     fun testFormatsIncAsMixedAspTemplate() {
