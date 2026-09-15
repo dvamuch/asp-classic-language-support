@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "v0.0.7"
+version = "v0.0.8"
 
 repositories {
     mavenCentral()
@@ -36,9 +36,9 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Adds configurable VBScript keyword casing for .vbs, .asp and .inc files.
-            Choose Preserve existing, lower case or Title Case under Editor | Code Style | VBScript.
-            The selected style is shared by formatting and keyword completion.
+            Makes file-reference case corrections safe inside compound ASP href/src attributes.
+            Applying Rename file reference now changes only the static path and preserves the embedded ASP expression.
+            Also stabilizes repeated formatting of nested ASP blocks containing blank lines.
         """.trimIndent()
     }
 }

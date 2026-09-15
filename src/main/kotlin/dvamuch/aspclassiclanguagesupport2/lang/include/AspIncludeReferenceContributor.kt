@@ -7,6 +7,7 @@ import com.intellij.psi.PsiReferenceContributor
 import com.intellij.psi.PsiReferenceProvider
 import com.intellij.psi.PsiReferenceRegistrar
 import com.intellij.psi.xml.XmlComment
+import com.intellij.psi.xml.XmlAttributeValue
 import com.intellij.util.ProcessingContext
 import dvamuch.aspclassiclanguagesupport2.lang.AspFileViewProvider
 
@@ -15,6 +16,11 @@ class AspIncludeReferenceContributor : PsiReferenceContributor() {
         registrar.registerReferenceProvider(
             PlatformPatterns.psiElement(XmlComment::class.java),
             AspIncludeReferenceProvider()
+        )
+        registrar.registerReferenceProvider(
+            PlatformPatterns.psiElement(XmlAttributeValue::class.java),
+            AspHtmlFileReferenceProvider(),
+            PsiReferenceRegistrar.HIGHER_PRIORITY
         )
     }
 }
