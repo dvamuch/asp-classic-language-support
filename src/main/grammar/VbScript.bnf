@@ -76,7 +76,7 @@ elseif_block ::= ELSEIF expr THEN if_block_branch?
 else_block ::= ELSE if_block_branch?
 
 select_stmt ::= SELECT CASE expr select_case_start case_block* case_else_block? END SELECT
-private select_case_start ::= (stmt_separator | comment_stmt)*
+private select_case_start ::= (stmt_separator | comment_stmt | template_gap)*
 case_block ::= CASE case_expr_list stmt_separator* statement_list?
 case_else_block ::= CASE ELSE stmt_separator* statement_list?
 case_expr_list ::= case_expr (COMMA case_expr)*
@@ -101,7 +101,7 @@ erase_stmt ::= ERASE id (COMMA id)*
 
 execute_stmt ::= (EXECUTE | EXECUTEGLOBAL) expr
 
-asp_output_stmt ::= ASP_EXPR_OPEN expr ASP_CLOSE
+asp_output_stmt ::= ASP_EXPR_OPEN expr EOL* ASP_CLOSE
 
 assignment_stmt ::= (SET | LET)? lvalue EQ expr
 lvalue ::= postfix_ref_expr | with_member_ref_expr

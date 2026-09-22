@@ -3,9 +3,13 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import dvamuch.aspclassiclanguagesupport2.lang.AspVbScriptContext
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUserClassResolver
 
 object VbResolveUtil {
     fun resolve(id: VbId): PsiElement? {
+        if (VbUserClassResolver.isMemberReference(id)) {
+            return VbUserClassResolver.resolveMember(id)
+        }
         val name = (id as? VbNamedElement)?.name ?: return null
         resolveInFile(id, name)?.let { return it }
 
@@ -56,9 +60,10 @@ object VbResolveUtil {
         if (declaration != null && !declaration.implicit) return false
 
         val parent = id.parent
-        if (parent is VbPostfixSuffix) return false
-        if (parent is VbWithMemberRefExpr || parent is VbWithQualifiedIdentifier) return false
-        if (parent is VbQualifiedIdentifier && parent.idList.firstOrNull() != id) return false
+        if (parent is VbPostfixSuffix) return parent.id === id
+        if (parent is VbWithMemberRefExpr) return true
+        if (parent is VbWithQualifiedIdentifier) return true
+        if (parent is VbQualifiedIdentifier && parent.idList.firstOrNull() != id) return true
         return true
     }
 

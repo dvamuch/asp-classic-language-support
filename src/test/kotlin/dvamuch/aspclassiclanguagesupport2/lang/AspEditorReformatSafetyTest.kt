@@ -5,7 +5,9 @@ import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.codeStyle.CodeStyleManager
+import com.intellij.application.options.CodeStyle
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -22,6 +24,9 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
         val targetOffset = source.indexOf(target)
         assertTrue("Expected the file-download ASP expression in Bugs/BugInfo.asp", targetOffset >= 0)
         val file = myFixture.configureByText("BugInfo.asp", source)
+        CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+            .KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
         myFixture.editor.caretModel.moveToOffset(0)
         myFixture.editor.scrollingModel.scrollVertically(0)
 
@@ -32,6 +37,7 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
 
         assertEquals("Reformat Code changed non-whitespace characters in Bugs/BugInfo.asp", before, file.text.filterNot(Char::isWhitespace))
         assertTrue(file.text, file.text.contains("<%= \"FileID=\" & rsFiles(\"FileID\") %>"))
+        assertBugInfoTitleBlockIndent(file.text)
 
         myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
         PsiDocumentManager.getInstance(project).commitAllDocuments()
@@ -43,6 +49,22 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
             Files.writeString(reportDirectory.resolve("second-pass.asp"), afterSecondPass)
         }
         assertEquals("A second Reformat Code pass changed Bugs/BugInfo.asp", afterFirstPass, afterSecondPass)
+    }
+
+    private fun assertBugInfoTitleBlockIndent(text: String) {
+        val lines = text.lines()
+        val ifLine = lines.indexOfFirst { it.contains("If Not rsBug.EOF Or Not rsBug.BOF Then") }
+        assertTrue("Expected the BugInfo title condition", ifLine >= 1 && ifLine + 5 < lines.size)
+
+        val baseIndent = lines[ifLine].takeWhile { it == ' ' || it == '\t' }.length
+        fun indentAt(offset: Int): Int = lines[ifLine + offset].takeWhile { it == ' ' || it == '\t' }.length
+
+        assertEquals("Opening ASP delimiter must align with If", baseIndent, indentAt(-1))
+        assertEquals("Closing ASP delimiter after If must enter the branch", baseIndent + 4, indentAt(1))
+        assertEquals("Bug title HTML must stay inside the branch", baseIndent + 4, indentAt(2))
+        assertEquals("Opening ASP delimiter before End If must stay inside the branch", baseIndent + 4, indentAt(3))
+        assertEquals("End If must align with If", baseIndent, indentAt(4))
+        assertEquals("Final ASP delimiter must align with End If", baseIndent, indentAt(5))
     }
 
     fun testBugInfoEditorActionMatchesDirectFormatter() {

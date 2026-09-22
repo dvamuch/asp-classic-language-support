@@ -26,15 +26,15 @@ object AspIncludeDirectiveParser {
 
     internal fun findAll(fileText: CharSequence): List<AspIncludeDirective> {
         return includePattern.findAll(fileText)
-            .map(::directive)
+            .mapNotNull(::directive)
             .toList()
     }
 
-    private fun directive(match: MatchResult): AspIncludeDirective {
+    private fun directive(match: MatchResult): AspIncludeDirective? {
         val pathGroup = match.groups[2] ?: match.groups[3]
             ?: error("Include directive path group is missing")
         val path = pathGroup.value.trim()
-        check(path.isNotEmpty())
+        if (path.isEmpty()) return null
 
         val leadingWhitespace = pathGroup.value.indexOfFirst { !it.isWhitespace() }
         val pathStart = pathGroup.range.first + leadingWhitespace.coerceAtLeast(0)

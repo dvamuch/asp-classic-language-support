@@ -21,18 +21,32 @@ class VbScriptCodeStyleSettingsProvider : LanguageCodeStyleSettingsProvider() {
                 "CONTINUATION_INDENT_SIZE"
             )
 
-            SettingsType.LANGUAGE_SPECIFIC -> consumer.showCustomOption(
-                VbScriptCodeStyleSettings::class.java,
-                "KEYWORD_CASE",
-                "Keyword case",
-                "Code style",
-                arrayOf("Preserve existing", "lower case", "Title Case"),
-                intArrayOf(
-                    VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE,
-                    VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER,
-                    VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE
+            SettingsType.LANGUAGE_SPECIFIC -> {
+                consumer.showCustomOption(
+                    VbScriptCodeStyleSettings::class.java,
+                    "KEYWORD_CASE",
+                    "Keyword case",
+                    "Code style",
+                    arrayOf("Preserve existing", "lower case", "Title Case"),
+                    intArrayOf(
+                        VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE,
+                        VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER,
+                        VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE
+                    )
                 )
-            )
+                consumer.showCustomOption(
+                    VbScriptCodeStyleSettings::class.java,
+                    "SPACE_INSIDE_ASP_DELIMITERS",
+                    "Spaces inside ASP delimiters",
+                    "ASP delimiters"
+                )
+                consumer.showCustomOption(
+                    VbScriptCodeStyleSettings::class.java,
+                    "MATCH_ASP_DELIMITER_PLACEMENT",
+                    "Match opening and closing delimiter placement",
+                    "ASP delimiters"
+                )
+            }
 
             else -> Unit
         }

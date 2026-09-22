@@ -1,6 +1,7 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.application.options.CodeStyle
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.psi.PsiDocumentManager
@@ -11,6 +12,7 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLexerAdapter
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbTypes
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -127,6 +129,12 @@ class AspTtsFormattingSafetyTest : BasePlatformTestCase() {
     private fun verifyFile(path: Path, relativePath: String, failures: MutableList<Failure>) {
         val original = readSource(path)
         val file = myFixture.configureByText(path.fileName.toString(), original)
+        // This gate detects destructive formatter changes. Keyword casing is an
+        // intentional style transformation and has dedicated integration tests,
+        // so preserve it here to keep corpus token comparisons meaningful.
+        CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+            .KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
         // Compare against the document text actually presented to the formatter.
         // IntelliJ removes an encoding BOM while creating the PSI/document, which
         // is an input-decoding change rather than a formatting change.

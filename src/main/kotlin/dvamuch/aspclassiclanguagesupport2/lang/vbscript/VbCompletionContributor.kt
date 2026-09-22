@@ -52,6 +52,13 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
         val position = parameters.position
         if (isInsideCommentOrString(parameters)) return
 
+        directNewClassName(position)?.let { className ->
+            VbUserClassResolver.resolveNewClass(className, position)?.let { classStatement ->
+                addUserClassMembers(result, classStatement, position)
+            }
+            return
+        }
+
         val memberPath = memberPath(position)
         if (memberPath != null) {
             val builtIn = memberPath.singleOrNull()?.let { owner ->
@@ -70,13 +77,36 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
                         objectMemberLookup(member, objectType)
                     )
                 }
+                return
+            }
+            VbUserClassResolver.resolve(memberPath, position)?.let { classStatement ->
+                addUserClassMembers(result, classStatement, position)
+            }
+            return
+        }
+
+        if (isWithMemberCompletion(position)) {
+            val ownerPath = VbUserClassResolver.enclosingWithOwnerPath(position)
+            val builtIn = ownerPath?.singleOrNull()?.let { owner ->
+                builtInMembers[owner.lowercase(Locale.ROOT)]
+            }
+            if (builtIn != null) {
+                builtIn.forEach { member -> result.addElement(lookup(member, "ASP built-in member")) }
+            } else {
+                ownerPath?.let { VbObjectTypeResolver.resolve(it, position) }?.let { objectType ->
+                    objectType.members.forEach { member ->
+                        result.addElement(objectMemberLookup(member, objectType))
+                    }
+                } ?: VbUserClassResolver.resolveEnclosingWith(position)?.let { classStatement ->
+                    addUserClassMembers(result, classStatement, position)
+                }
             }
             return
         }
 
         val keywordCase = position.containingFile?.let(CodeStyle::getSettings)
             ?.let(VbScriptKeywordCaseSupport::mode)
-            ?: VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
+            ?: VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE
         keywords.forEach { keyword ->
             result.addElement(
                 lookup(VbScriptKeywordCaseSupport.normalizeCompletion(keyword, keywordCase), "VBScript keyword")
@@ -184,6 +214,35 @@ private class VbCompletionProvider : CompletionProvider<CompletionParameters>() 
             else -> null
         } ?: memberPathFromText(position)
         return path?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun isWithMemberCompletion(position: PsiElement): Boolean {
+        val text = position.containingFile?.text ?: return false
+        val offset = position.textOffset.coerceIn(0, text.length)
+        val before = text.substring(0, offset).trimEnd()
+        return before.endsWith('.') &&
+            PsiTreeUtil.getParentOfType(position, dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbWithStmt::class.java, false) != null
+    }
+
+    private fun directNewClassName(position: PsiElement): String? {
+        val text = position.containingFile?.text ?: return null
+        val prefix = text.substring(0, position.textOffset.coerceAtMost(text.length))
+        return directNewCompletionRegex.find(prefix)?.groupValues?.get(1)
+    }
+
+    private fun addUserClassMembers(
+        result: CompletionResultSet,
+        classStatement: VbClassStmt,
+        position: PsiElement
+    ) {
+        VbUserClassResolver.members(classStatement, position).forEach { member ->
+            val name = (member.id as? VbNamedElement)?.name ?: return@forEach
+            result.addElement(
+                LookupElementBuilder.createWithSmartPointer(name, member.id)
+                    .withCaseSensitivity(false)
+                    .withTypeText("user class ${member.kind}", true)
+            )
+        }
     }
 
     private fun isInsideCommentOrString(parameters: CompletionParameters): Boolean {
@@ -313,41 +372,12 @@ private val keywords = listOf(
     "Xor", "Eqv", "Imp", "Is", "Mod"
 )
 
-private val builtInGlobals = listOf(
-    "Request", "Response", "Session", "Application", "Server", "ObjectContext", "Err",
-    "Array", "Asc", "CBool", "CByte", "CCur", "CDate", "CDbl", "Chr", "CInt", "CLng",
-    "CSng", "CStr", "Date", "DateAdd", "DateDiff", "DatePart", "DateSerial", "DateValue",
-    "Day", "Eval", "Filter", "FormatCurrency", "FormatDateTime", "FormatNumber",
-    "FormatPercent", "GetLocale", "GetObject", "Hex", "Hour", "InStr", "InStrRev",
-    "IsArray", "IsDate", "IsEmpty", "IsNull", "IsNumeric", "IsObject", "Join", "LBound",
-    "LCase", "Left", "Len", "Log", "LTrim", "Mid", "Minute", "Month", "MonthName",
-    "Now", "Oct", "Replace", "Right", "Rnd", "Round", "RTrim", "Second", "SetLocale",
-    "Space", "Split", "Sqr", "StrComp", "String", "StrReverse", "Time", "Timer",
-    "TimeSerial", "TimeValue", "Trim", "TypeName", "UBound", "UCase", "VarType",
-    "Weekday", "WeekdayName", "Year"
-)
-
-private val builtInMembers = mapOf(
-    "request" to listOf(
-        "BinaryRead", "ClientCertificate", "Cookies", "Form", "QueryString",
-        "ServerVariables", "TotalBytes"
-    ),
-    "response" to listOf(
-        "AddHeader", "AppendToLog", "BinaryWrite", "Buffer", "CacheControl", "Charset",
-        "Clear", "ContentType", "Cookies", "End", "Expires", "ExpiresAbsolute", "Flush",
-        "IsClientConnected", "PICS", "Redirect", "Status", "Write"
-    ),
-    "server" to listOf(
-        "CreateObject", "Execute", "GetLastError", "HTMLEncode", "MapPath", "ScriptTimeout",
-        "Transfer", "URLEncode"
-    ),
-    "session" to listOf(
-        "Abandon", "CodePage", "Contents", "LCID", "SessionID", "StaticObjects", "Timeout"
-    ),
-    "application" to listOf("Contents", "Lock", "StaticObjects", "Unlock"),
-    "objectcontext" to listOf("SetAbort", "SetComplete"),
-    "err" to listOf("Clear", "Description", "HelpContext", "HelpFile", "Number", "Raise", "Source")
-)
+private val builtInGlobals = VbBuiltInSymbols.globals
+private val builtInMembers = VbBuiltInSymbols.members
 
 private val memberPathStartRegex = Regex("[A-Za-z_][A-Za-z0-9_]*")
+private val directNewCompletionRegex = Regex(
+    """\(\s*New\s+([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\.\s*$""",
+    RegexOption.IGNORE_CASE
+)
 private const val ADO_ENUM_COMPLETION_PRIORITY = 100.0

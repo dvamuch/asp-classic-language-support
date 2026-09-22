@@ -320,6 +320,55 @@ class VbIncludeFindUsagesTest : BasePlatformTestCase() {
         assertEquals(setOf(consumer.virtualFile), findUsages(klass).mapTo(linkedSetOf()) { it.virtualFile })
     }
 
+    fun testFindsIncludedClassMemberUsageInConsumer() {
+        val declarationFile = myFixture.addFileToProject(
+            "site/includes/order-service.inc",
+            """
+            <%
+            Class OrderService
+                Public Function GetRecentOrders()
+                    GetRecentOrders = Array()
+                End Function
+            End Class
+            %>
+            """.trimIndent()
+        )
+        myFixture.addFileToProject(
+            "site/includes/report-service.inc",
+            """
+            <%
+            Class ReportService
+                Public Function GetRecentOrders()
+                    GetRecentOrders = Array()
+                End Function
+            End Class
+            %>
+            """.trimIndent()
+        )
+        val consumer = myFixture.addFileToProject(
+            "site/default.asp",
+            """
+            <!--#include file="includes/order-service.inc" -->
+            <!--#include file="includes/report-service.inc" -->
+            <%
+            Set orderService = New OrderService
+            Set reportService = New ReportService
+            recentOrders = orderService.GetRecentOrders()
+            recentReports = reportService.GetRecentOrders()
+            %>
+            """.trimIndent()
+        )
+        val member = idAt(declarationFile, "Function GetRecentOrders", "GetRecentOrders")
+
+        val usages = findUsages(member)
+
+        assertEquals(2, usages.size)
+        assertEquals(
+            setOf(declarationFile.virtualFile, consumer.virtualFile),
+            usages.mapTo(linkedSetOf()) { it.virtualFile }
+        )
+    }
+
     private fun findUsages(declaration: VbId): List<UsageInfo> {
         val handler = VbFindUsagesHandlerFactory().createFindUsagesHandler(declaration, false)
         val options = handler.findUsagesOptions.apply {

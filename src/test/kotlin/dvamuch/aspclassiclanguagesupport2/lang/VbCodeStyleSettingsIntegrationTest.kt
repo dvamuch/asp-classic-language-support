@@ -11,6 +11,7 @@ import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLanguage
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStylePanel
 import java.awt.Component
 import java.awt.Container
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 
 class VbCodeStyleSettingsIntegrationTest : BasePlatformTestCase() {
@@ -20,9 +21,11 @@ class VbCodeStyleSettingsIntegrationTest : BasePlatformTestCase() {
 
         val settings = CodeStyleSettings()
         assertEquals(
-            VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE,
+            VbScriptCodeStyleSettings.KEYWORD_CASE_TITLE,
             settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).KEYWORD_CASE
         )
+        assertTrue(settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).SPACE_INSIDE_ASP_DELIMITERS)
+        assertTrue(settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).MATCH_ASP_DELIMITER_PLACEMENT)
 
         val configurable = VbScriptCodeStyleSettingsFactory().createConfigurable(settings, settings.clone())
         try {
@@ -30,13 +33,22 @@ class VbCodeStyleSettingsIntegrationTest : BasePlatformTestCase() {
             val component = configurable.createComponent()
             assertNotNull(component)
             val combo = descendants(component!!).filterIsInstance<JComboBox<*>>().single()
+            val checkBoxes = descendants(component).filterIsInstance<JCheckBox>().toList()
             assertEquals(
                 listOf("Preserve existing", "lower case", "Title Case"),
                 (0 until combo.itemCount).map(combo::getItemAt)
             )
+            assertEquals(
+                listOf(
+                    "Spaces inside ASP delimiters",
+                    "Match opening and closing delimiter placement"
+                ),
+                checkBoxes.map { it.text }
+            )
             val panel = (configurable as CodeStyleAbstractConfigurable).panel as VbScriptCodeStylePanel
+            configurable.reset()
 
-            assertTrue(panel.previewTextForTest(), panel.previewTextForTest().contains("iF ready tHen"))
+            assertTrue(panel.previewTextForTest(), panel.previewTextForTest().contains("If ready Then"))
 
             combo.selectedIndex = VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER
             assertTrue(panel.previewTextForTest(), panel.previewTextForTest().contains("if ready then"))
@@ -48,11 +60,14 @@ class VbCodeStyleSettingsIntegrationTest : BasePlatformTestCase() {
             assertTrue(panel.previewTextForTest(), panel.previewTextForTest().contains("End If"))
 
             combo.selectedIndex = VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER
+            checkBoxes.forEach { it.isSelected = false }
             configurable.apply()
             assertEquals(
                 VbScriptCodeStyleSettings.KEYWORD_CASE_LOWER,
                 settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).KEYWORD_CASE
             )
+            assertFalse(settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).SPACE_INSIDE_ASP_DELIMITERS)
+            assertFalse(settings.getCustomSettings(VbScriptCodeStyleSettings::class.java).MATCH_ASP_DELIMITER_PLACEMENT)
         } finally {
             configurable.disposeUIResources()
         }

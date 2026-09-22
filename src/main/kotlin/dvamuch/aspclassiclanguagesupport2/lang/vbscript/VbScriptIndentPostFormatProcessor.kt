@@ -43,8 +43,11 @@ internal object VbScriptIndentNormalizer {
     fun normalize(file: PsiFile, settings: CodeStyleSettings) {
         val documentManager = PsiDocumentManager.getInstance(file.project)
         val document = documentManager.getDocument(file) ?: return
-        val indentSize = settings.getCommonSettings(VbScriptLanguage).indentOptions?.INDENT_SIZE ?: 4
-        val indented = normalizeText(document.text, indentSize)
+        val indentOptions = settings.getCommonSettings(VbScriptLanguage).indentOptions
+        val indentSize = indentOptions?.INDENT_SIZE ?: 4
+        val continuationIndentSize = indentOptions?.CONTINUATION_INDENT_SIZE ?: 8
+        val spaced = VbScriptLexicalSpacingNormalizer.normalizeText(document.text)
+        val indented = normalizeText(spaced, indentSize, continuationIndentSize)
         val normalized = VbScriptKeywordCaseSupport.normalizeText(
             indented,
             VbScriptKeywordCaseSupport.mode(settings)
@@ -54,9 +57,10 @@ internal object VbScriptIndentNormalizer {
         documentManager.commitDocument(document)
     }
 
-    fun normalizeText(text: String, indentSize: Int): String {
+    fun normalizeText(text: String, indentSize: Int, continuationIndentSize: Int = indentSize): String {
         val tracker = VbScriptControlFlowTracker()
         var previousLineContinues = false
+        var continuationBaseIndent = 0
         var offset = 0
         return buildString(text.length) {
             while (offset < text.length) {
@@ -65,14 +69,24 @@ internal object VbScriptIndentNormalizer {
                 }
                 val line = text.substring(offset, lineEnd)
                 val code = line.trimStart(' ', '\t')
-                if (code.isEmpty() || previousLineContinues) {
+                val currentLineContinues = hasLineContinuation(line)
+                if (code.isEmpty()) {
                     append(line)
+                } else if (previousLineContinues) {
+                    val continuationIndent = if (startsWithClosingDelimiter(code)) {
+                        continuationBaseIndent
+                    } else {
+                        continuationBaseIndent + continuationIndentSize
+                    }
+                    append(" ".repeat(continuationIndent))
+                    append(code)
                 } else {
                     val level = tracker.consume(code).indentLevel
-                    append(" ".repeat(level * indentSize))
+                    continuationBaseIndent = level * indentSize
+                    append(" ".repeat(continuationBaseIndent))
                     append(code)
                 }
-                previousLineContinues = hasLineContinuation(line)
+                previousLineContinues = currentLineContinues
 
                 if (lineEnd < text.length) {
                     if (text[lineEnd] == '\r' && lineEnd + 1 < text.length && text[lineEnd + 1] == '\n') {
@@ -88,6 +102,9 @@ internal object VbScriptIndentNormalizer {
             }
         }
     }
+
+    private fun startsWithClosingDelimiter(code: String): Boolean =
+        code.startsWith(")") || code.startsWith("]")
 
     private fun hasLineContinuation(line: String): Boolean {
         if (!line.trimEnd().endsWith('_')) return false

@@ -1,34 +1,24 @@
-<!-- Plugin Configuration File: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <!-- Unique identifier of the plugin. It should be FQN, cannot be changed between the plugin versions. -->
     <id>dvamuch.asp-classic-language-support</id>
+    <name>ASP Classic Language Support</name>
+    <vendor url="https://github.com/Dvamuch">Dvamuch</vendor>
+    <description><![CDATA[
+        <p>Language support for maintaining ASP Classic projects that use VBScript.</p>
+        <ul>
+          <li>Native file-wide ASP/VBScript parsing with HTML template support.</li>
+          <li>Syntax highlighting, navigation, Find Usages, Structure View and completion.</li>
+          <li>Relative and virtual include resolution with missing-include diagnostics.</li>
+          <li>Conservative undeclared-identifier diagnostics for <code>Option Explicit</code>.</li>
+          <li>Formatting for VBScript and mixed ASP/HTML with code-preservation safeguards.</li>
+          <li>Completion for ASP built-ins, user classes and common ADO/Scripting/MSXML/WinHTTP objects.</li>
+        </ul>
+        <p>Supported source types: <code>.asp</code>, <code>.inc</code> and <code>.vbs</code>.</p>
+    ]]></description>
 
-    <!-- Public plugin name should be written in Title Case.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
-    <name>Asp Classic Language</name>
-
-    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://github.com/Dvamuch">Artem Selifonov (Dvamuch)</vendor>
-
-    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
-         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
-    <description>
-        An IntelliJ Platform plugin that adds support for ASP Classic files with VBScript engine (.asp, .inc).
-        Current state:
-        — HTML part is handled by the IDE;
-        — ASP/VBScript has highlighting, navigation, usages, completion and formatting;
-        — a native file-wide PSI keeps multiple scriptlet blocks in one VBScript context.
-
-        Even in this state it helps a lot while working with old legacy codebases.
-    </description>
-
-    <!-- Product and plugin compatibility requirements.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.xml</depends>
+    <depends>intellij.structureView.plugin</depends>
 
-    <!-- Extensions defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <lang.elementManipulator forClass="com.intellij.psi.xml.XmlAttributeValue"
                                  implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspXmlAttributeValueManipulator"
@@ -65,6 +55,20 @@
                                   implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeReferenceContributor"/>
         <findUsagesHandlerFactory implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspFileFindUsagesHandlerFactory"/>
         <customUsageSearcher implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeCustomUsageSearcher"/>
+        <localInspection language="HTML"
+                         shortName="AspMissingInclude"
+                         displayName="Missing ASP include"
+                         groupName="ASP Classic"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="dvamuch.aspclassiclanguagesupport2.lang.include.AspMissingIncludeInspection"/>
+        <localInspection language="VBScript"
+                         shortName="VbUnresolvedIdentifier"
+                         displayName="Undeclared identifier with Option Explicit"
+                         groupName="ASP Classic"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbUnresolvedIdentifierInspection"/>
         <heavyBracesHighlighter implementation="dvamuch.aspclassiclanguagesupport2.lang.VbKeywordBraceHighlighter"/>
         <fileBasedIndex implementation="dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeIndex"/>
         <fileType name="ASP" language="ASP"

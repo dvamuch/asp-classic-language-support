@@ -49,6 +49,231 @@ class VbCompletionIntegrationTest : BasePlatformTestCase() {
         assertFalse("ASP globals must not be offered after an object dot", variants.contains("Response"))
     }
 
+    fun testCompletesPublicMembersOfUserClassInstance() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Name
+                Public Sub Run()
+                End Sub
+                Public Function Status()
+                End Function
+                Public Property Get Item(index)
+                End Property
+                Private Sub Reset()
+                End Sub
+                Dim internalState
+            End Class
+
+            Dim worker
+            Set worker = New Worker
+            worker.<caret>
+            """.trimIndent()
+        )
+
+        val variants = completionVariants()
+
+        assertContainsElements(variants, "Name", "Run", "Status", "Item")
+        assertFalse("Private procedures must stay hidden outside the class", variants.contains("Reset"))
+        assertFalse("Class-level Dim fields are private", variants.contains("internalState"))
+    }
+
+    fun testCompletesUserClassMembersInsideWithBlock() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+                Public Property Get Name()
+                End Property
+            End Class
+
+            Dim worker
+            Set worker = New Worker
+            With worker
+                .<caret>
+            End With
+            """.trimIndent()
+        )
+
+        assertContainsElements(completionVariants(), "Run", "Name")
+    }
+
+    fun testCompletesBuiltInAndComMembersInsideWithBlock() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            With Response
+                .<caret>
+            End With
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Write", "Redirect", "ContentType")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Dim expression
+            Set expression = New RegExp
+            With expression
+                .<caret>
+            End With
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Pattern", "Global", "Execute", "Test")
+    }
+
+    fun testCompletesMembersOnDirectNewExpressionAndReturnedUserClass() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            (New Worker).<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Run")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Class Factory
+                Public Function CreateWorker()
+                    Set CreateWorker = New Worker
+                End Function
+            End Class
+
+            Dim factory
+            Set factory = New Factory
+            factory.CreateWorker().<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Run")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Class Factory
+                Public Function CreateWorker()
+                    Set CreateWorker = New Worker
+                End Function
+            End Class
+
+            Dim factory, worker
+            Set factory = New Factory
+            Set worker = factory.CreateWorker()
+            worker.<caret>
+            """.trimIndent()
+        )
+        assertContainsElements(completionVariants(), "Run")
+    }
+
+    fun testCompletesPrivateMembersThroughMeInsideClass() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Private Sub Reset()
+                End Sub
+
+                Public Sub Run()
+                    Me.<caret>
+                End Sub
+            End Class
+            """.trimIndent()
+        )
+
+        assertContainsElements(completionVariants(), "Reset", "Run")
+    }
+
+    fun testCompletesReturnedUserClassInQualifiedAndNestedWith() {
+        val declarations = """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Class Factory
+                Public Function Current()
+                    Set Current = New Worker
+                End Function
+            End Class
+
+            Dim factory
+            Set factory = New Factory
+        """.trimIndent()
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            "$declarations\nWith factory.Current()\n    .<caret>\nEnd With"
+        )
+        assertContainsElements(completionVariants(), "Run")
+
+        myFixture.configureByText(
+            VbScriptFileType,
+            "$declarations\nWith factory\n    With .Current()\n        .<caret>\n    End With\nEnd With"
+        )
+        assertContainsElements(completionVariants(), "Run")
+    }
+
+    fun testOptionExplicitHidesImplicitAssignmentFromCompletion() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Option Explicit
+            missing = 1
+            <caret>
+            """.trimIndent()
+        )
+
+        assertFalse(completionVariants().contains("missing"))
+    }
+
+    fun testCompletesUserClassMembersFromIncludedAspFile() {
+        myFixture.addFileToProject(
+            "site/classes/worker.inc",
+            """
+            <%
+            Class Worker
+                Public Sub Run()
+                End Sub
+                Public Property Get Name()
+                End Property
+            End Class
+            %>
+            """.trimIndent()
+        )
+        val page = myFixture.addFileToProject(
+            "site/page.asp",
+            """
+            <!--#include file="classes/worker.inc" -->
+            <%
+            Dim worker
+            Set worker = New Worker
+            worker.<caret>
+            %>
+            """.trimIndent()
+        )
+        myFixture.configureFromExistingVirtualFile(page.virtualFile)
+
+        assertContainsElements(completionVariants(), "Run", "Name")
+    }
+
     fun testDoesNotCompleteInsideCommentsOrStrings() {
         myFixture.configureByText(VbScriptFileType, "' Res<caret>")
         assertEmpty(completionVariants())

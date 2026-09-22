@@ -14,7 +14,7 @@ internal object VbHostUsageInfo {
         return if (ApplicationManager.getApplication().isReadAccessAllowed) {
             fromInReadAction(usage)
         } else {
-            ReadAction.compute<UsageInfo, RuntimeException> { fromInReadAction(usage) }
+            ReadAction.computeBlocking<UsageInfo, RuntimeException> { fromInReadAction(usage) }
         }
     }
 

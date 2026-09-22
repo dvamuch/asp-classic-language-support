@@ -6,12 +6,13 @@ import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFileType
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptLexicalSpacingNormalizer
 
 class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
-    fun testPreservesKeywordCaseByDefault() {
+    fun testFormatsKeywordCaseInTitleCaseByDefault() {
         assertReformatted(
             "iF ready tHeN\nvalue=1\neLsE\nvalue=2\nEnD iF",
-            "iF ready tHeN\n    value = 1\neLsE\n    value = 2\nEnD iF"
+            "If ready Then\n    value = 1\nElse\n    value = 2\nEnd If"
         )
     }
 
@@ -38,6 +39,14 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
                 "$comment\nIf ready Then\n    value = 1\nEnd If"
             )
         }
+    }
+
+    fun testLexicalSpacingPreservesMixedLineSeparatorsAndTabIndentation() {
+        val source = "If ready Then\r\n\tvalue=1\r' keep\ttabs\r\nEnd If"
+
+        val formatted = VbScriptLexicalSpacingNormalizer.normalizeText(source)
+
+        assertEquals("If ready Then\r\n\tvalue = 1\r' keep\ttabs\r\nEnd If", formatted)
     }
 
     fun testFormatsNestedBlocksAndBinaryOperators() {
@@ -198,6 +207,35 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
         assertFalse("Formatter must not collapse the continuation", file.text.contains("& second"))
     }
 
+    fun testNormalizesContinuationIndentAndAlignsClosingParenthesis() {
+        val file = myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Set result = connection.Execute( _
+              "Select Field " & _
+                 "From Table " & _
+             "Where ID = " & id _
+                  )
+            """.trimIndent()
+        )
+
+        reformat(file)
+
+        assertEquals(
+            """
+            Set result = connection.Execute( _
+                    "Select Field " & _
+                    "From Table " & _
+                    "Where ID = " & id _
+            )
+            """.trimIndent(),
+            file.text
+        )
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Continuation indentation must settle in one pass", onceFormatted, file.text)
+    }
+
     fun testDoesNotFailOnIncompleteBlock() {
         val file = myFixture.configureByText(
             VbScriptFileType,
@@ -272,15 +310,15 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
             """.trimIndent(),
             """
             Class DeviceDal
-                public function getById(deviceId)
-                    set result = deviceId
-                end function
-                private sub reset()
+                Public Function getById(deviceId)
+                    Set result = deviceId
+                End Function
+                Private Sub reset()
                     value = 0
-                end sub
-                public default property get Item(index)
+                End Sub
+                Public Default Property Get Item(index)
                     Item = index
-                end property
+                End Property
             End Class
             """.trimIndent()
         )

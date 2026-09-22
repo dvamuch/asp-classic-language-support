@@ -55,6 +55,30 @@ class AspInjectedRegressionParsingTest : BasePlatformTestCase() {
         assertTrue("Outer If PSI must include intervening HTML", blocks.maxBy { it.textLength }.text.contains("<div>"))
     }
 
+    fun testParsesOutputExpressionWithClosingDelimiterOnNextLine() {
+        assertNativeAspParses(
+            """
+            <td title="description"><%= recordset("Description")
+            %></td>
+            """.trimIndent()
+        )
+    }
+
+    fun testParsesSelectCaseWhoseBranchesUseSeparateScriptlets() {
+        assertNativeAspParses(
+            """
+            <% Select Case recordset("SectionID") %>
+            <% Case 3 %>
+              <a href="trouble.asp">Trouble</a>
+            <% Case 6 %>
+              <a href="order.asp">Order</a>
+            <% Case Else %>
+              <span>Unknown</span>
+            <% End Select %>
+            """.trimIndent()
+        )
+    }
+
     private fun assertInjectedParses(aspText: String) {
         assertNativeAspParses(aspText)
     }

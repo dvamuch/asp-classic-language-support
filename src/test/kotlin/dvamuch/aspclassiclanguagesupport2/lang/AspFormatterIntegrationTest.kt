@@ -1,14 +1,19 @@
 package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.ide.highlighter.HtmlFileType
+import com.intellij.lang.html.HTMLLanguage
 import com.intellij.application.options.CodeStyle
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
+import com.intellij.psi.formatter.xml.HtmlCodeStyleSettings
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
+import java.nio.file.Files
+import java.nio.file.Path
 
 class AspFormatterIntegrationTest : BasePlatformTestCase() {
     fun testAppliesKeywordCaseAcrossAspScriptletsOnly() {
@@ -67,6 +72,150 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         val onceFormatted = file.text
         reformat(file)
         assertEquals(onceFormatted, file.text)
+    }
+
+    fun testKeepsInlineAspDelimiterPairsInline() {
+        assertReformatted(
+            """
+            <div>
+                <%if ready then%>
+                <span><%=value+1%></span>
+                <%end if%>
+            </div>
+            """.trimIndent(),
+            """
+            <div>
+                <% If ready Then %>
+                    <span><%= value + 1 %></span>
+                <% End If %>
+            </div>
+            """.trimIndent()
+        )
+    }
+
+    fun testMatchesMultilineAspDelimiterPlacementAndAlignment() {
+        assertReformatted(
+            """
+            <div>
+                <%
+                If ready Then %>
+                <span>Ready</span>
+                <% End If
+                %>
+            </div>
+            """.trimIndent(),
+            """
+            <div>
+                <%
+                If ready Then
+                    %>
+                    <span>Ready</span>
+                    <%
+                End If
+                %>
+            </div>
+            """.trimIndent()
+        )
+    }
+
+    fun testIndentsBothAspBoundariesAroundHtmlInsideIfBlock() {
+        assertReformatted(
+            """
+            <title>
+                <%
+                If Not rsBug.EOF Or Not rsBug.BOF Then
+                %>
+                    Bug:<%= rsBug("BugID") %> - <%= BugTitle %>
+                <%
+                End If
+                %>
+            </title>
+            """.trimIndent(),
+            """
+            <title>
+                <%
+                If Not rsBug.EOF Or Not rsBug.BOF Then
+                    %>
+                    Bug:<%= rsBug("BugID") %> - <%= BugTitle %>
+                    <%
+                End If
+                %>
+            </title>
+            """.trimIndent()
+        )
+    }
+
+    fun testMarketplaceFormattingDemoMatchesExpectedOutput() {
+        val demoRoot = Path.of("examples/marketplace-demo")
+        val before = Files.readString(demoRoot.resolve("formatting-before.asp"))
+        val expected = Files.readString(demoRoot.resolve("formatting-after.asp"))
+        val file = myFixture.configureByText("marketplace-formatting-demo.asp", before)
+
+        reformat(file)
+
+        assertEquals("Marketplace before/after files must match the real formatter", expected, file.text)
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Marketplace formatting demo must settle in one pass", onceFormatted, file.text)
+    }
+
+    fun testKeepsMultilineAspDelimitersOnLinesWithoutTrailingHtml() {
+        val source = """
+            <div>
+                <%
+                If ready Then
+                %> <img src="icon.png" width="16" height="16" border="0" align="absmiddle"
+                       class="noprint" style="cursor:pointer" title="Send message">
+                <%
+                End If
+                %>
+            </div>
+        """.trimIndent()
+        val file = myFixture.configureByText("delimiter-with-html.asp", source)
+
+        reformat(file)
+
+        assertFalse(file.text, Regex("(?m)^[ \\t]*%>[ \\t]+\\S").containsMatchIn(file.text))
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Multiline delimiter and following HTML must settle in one pass", onceFormatted, file.text)
+    }
+
+    fun testCanDisableSpacesInsideAspDelimiters() {
+        val source = "<div><%=value+1%></div>"
+        val file = myFixture.configureByText("delimiter-spaces.asp", source)
+        val customSettings = CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+        val previous = customSettings.SPACE_INSIDE_ASP_DELIMITERS
+        try {
+            customSettings.SPACE_INSIDE_ASP_DELIMITERS = false
+            reformat(file)
+            assertEquals("<div><%=value + 1%></div>", file.text)
+        } finally {
+            customSettings.SPACE_INSIDE_ASP_DELIMITERS = previous
+        }
+    }
+
+    fun testCanDisableMatchingAspDelimiterPlacement() {
+        val source = """
+            <%
+            value = 1 %>
+        """.trimIndent()
+        val file = myFixture.configureByText("legacy-delimiter-placement.asp", source)
+        val customSettings = CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+        val previous = customSettings.MATCH_ASP_DELIMITER_PLACEMENT
+        try {
+            customSettings.MATCH_ASP_DELIMITER_PLACEMENT = false
+            reformat(file)
+            assertTrue(file.text, file.text.startsWith("<%\n"))
+            assertTrue(file.text, file.text.contains("value = 1 %>"))
+            val onceFormatted = file.text
+            reformat(file)
+            assertEquals(onceFormatted, file.text)
+        } finally {
+            customSettings.MATCH_ASP_DELIMITER_PLACEMENT = previous
+        }
     }
 
     fun testDoesNotAccumulateWhitespaceBeforeClosingDelimiter() {
@@ -139,6 +288,92 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testAlignsAspExpressionOnContinuationLineInsideHtmlAttribute() {
+        for (alignText in listOf(false, true)) {
+            val source = """
+                <table>
+                    <tr>
+                        <td valign="top"
+                            title="Телефон: <%= rsOrder("ManagerPhone") %>
+              <%= CHR(13) & CHR(13) & FormatCrLfStrAsText(rsOrder("Comments")) %>">
+                            Manager
+                        </td>
+                    </tr>
+                </table>
+            """.trimIndent()
+            val file = myFixture.configureByText("attribute-$alignText.asp", source)
+            CodeStyle.getSettings(file)
+                .getCustomSettings(HtmlCodeStyleSettings::class.java)
+                .HTML_ALIGN_TEXT = alignText
+
+            reformat(file)
+
+            val lines = file.text.lines()
+            val attributeLine = lines.single { it.trimStart().startsWith("title=") }
+            val expressionLine = lines.single { it.trimStart().startsWith("<%= CHR(13)") }
+            val attributeIndent = attributeLine.length - attributeLine.trimStart().length
+            val expressionIndent = expressionLine.length - expressionLine.trimStart().length
+            val continuationIndent = CodeStyle.getSettings(file)
+                .getCommonSettings(HTMLLanguage.INSTANCE)
+                .indentOptions?.CONTINUATION_INDENT_SIZE ?: 4
+            assertEquals(
+                "ASP continuation in an attribute should use one continuation indent (alignText=$alignText)",
+                attributeIndent + continuationIndent,
+                expressionIndent
+            )
+            assertEquals(source.filterNot(Char::isWhitespace), file.text.filterNot(Char::isWhitespace))
+            val onceFormatted = file.text
+            reformat(file)
+            assertEquals("Attribute formatting must settle in one pass", onceFormatted, file.text)
+        }
+    }
+
+    fun testSpacesOperatorsWhenOtherAspFragmentsMakeTemporaryVbScriptIncomplete() {
+        assertReformatted(
+            """
+            <% If broken Then %>
+            <span><%= unknown( %></span>
+            <% If rsOrder("PServiceID")<>"" Then %>
+            <%=left+right*2%>
+            <% End If %>
+            """.trimIndent(),
+            """
+            <% If broken Then %>
+                <span><%= unknown( %></span>
+                <% If rsOrder("PServiceID") <> "" Then %>
+                    <%= left + right * 2 %>
+                <% End If %>
+            """.trimIndent()
+        )
+    }
+
+    fun testNormalizesVbScriptContinuationIndentInsideAsp() {
+        assertReformatted(
+            """
+            <div>
+                <%
+                Set result = connection.Execute( _
+            "Select Field " & _
+              "From Table " & _
+             "Where ID = " & id _
+          )
+                %>
+            </div>
+            """.trimIndent(),
+            """
+            <div>
+                <%
+                Set result = connection.Execute( _
+                        "Select Field " & _
+                        "From Table " & _
+                        "Where ID = " & id _
+                )
+                %>
+            </div>
+            """.trimIndent()
+        )
+    }
+
     fun testPreservesQuotedExpressionInsideLongHtmlAttribute() {
         val source = """
             <img style="cursor:pointer;" title="Скопировать адрес в буфер обмена" alt="Скопировать адрес в буфер обмена" src="/images/copy2buff.gif" width="16" height="16" onClick="copylinkToClipboard(this)" link="http://tts.naukanet.ru/files/filedownload.asp?<%="FileID=" & rsFiles("FileID") %>">
@@ -181,6 +416,38 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
                 %>
             </div>
             """.trimIndent()
+        )
+    }
+
+    fun testSemanticLayoutPreAndPostPassesDoNotAccumulateIndent() {
+        val source = """
+            <%
+            If enabled Then
+                %>
+                <table>
+                    <tr><td>Text</td></tr>
+                </table>
+                <%
+            End If
+            %>
+        """.trimIndent()
+        val file = myFixture.configureByText("semantic-layout-round-trip.asp", source)
+        reformat(file)
+        val onceFormatted = file.text
+        val processor = AspPostFormatProcessor()
+        val settings = CodeStyle.getSettings(file)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            processor.prepareCodeSpacing(file, settings)
+            PsiDocumentManager.getInstance(project).commitAllDocuments()
+            processor.processText(file, TextRange(0, file.textLength), settings)
+        }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            "Semantic indentation removed before the HTML pass must be restored exactly once",
+            onceFormatted,
+            file.text
         )
     }
 
@@ -245,7 +512,7 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         assertEquals("Formatting an INC file twice should be stable", onceFormatted, file.text)
     }
 
-    fun testExpandsInlineIfAroundHtmlAndKeepsFourSpaceNesting() {
+    fun testKeepsInlineIfAroundHtmlAndKeepsFourSpaceNesting() {
         assertReformatted(
             """
             <% if isAuthor = 0 then %>
@@ -257,17 +524,13 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
             <% end if %>
             """.trimIndent(),
             """
-            <%
-            if isAuthor = 0 then
-                %>
+            <% If isAuthor = 0 Then %>
                 <script type="text/javascript">
                     alert('Message' + '\n' +
                         'Second line')
                 </script>
 
-                <%
-            end if
-            %>
+            <% End If %>
             """.trimIndent()
         )
     }
@@ -293,7 +556,7 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         )
     }
 
-    fun testExpandsInlineElseBranchAroundHtml() {
+    fun testKeepsInlineElseBranchAroundHtml() {
         assertReformatted(
             """
             <% If ready Then %>
@@ -303,17 +566,11 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
             <% End If %>
             """.trimIndent(),
             """
-            <%
-            If ready Then
-                %>
+            <% If ready Then %>
                 <p>Ready</p>
-                <%
-            Else
-                %>
+            <% Else %>
                 <p>Not ready</p>
-                <%
-            End If
-            %>
+            <% End If %>
             """.trimIndent()
         )
     }
@@ -338,12 +595,12 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         assertEquals(
             """
             <%
-            class DeviceDal
-                public function getById(deviceId)
-                    set cmd = Server.CreateObject("ADODB.Command")
-                    set getById = cmd.Execute()
-                end function
-            end class
+            Class DeviceDal
+                Public Function getById(deviceId)
+                    Set cmd = Server.CreateObject("ADODB.Command")
+                    Set getById = cmd.Execute()
+                End Function
+            End Class
             %>
             """.trimIndent(),
             file.text
@@ -406,6 +663,30 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         PsiDocumentManager.getInstance(project).commitAllDocuments()
 
         assertEquals("<%\nvalue = value + 1\n%>", file.text)
+    }
+
+    fun testUserTextCannotCollideWithInternalFragmentMarkers() {
+        val source = """
+            <%
+            markerText = "'__ASP_FORMAT_0_END__"
+            ' '__ASP_FORMAT_1_START__ must remain an ordinary user comment
+            If ready Then
+            value=1
+            End If
+            %>
+            <p><%=markerText%></p>
+        """.trimIndent()
+        val file = myFixture.configureByText("marker-collision.asp", source)
+
+        reformat(file)
+
+        assertTrue(file.text, file.text.contains("markerText = \"'__ASP_FORMAT_0_END__\""))
+        assertTrue(file.text, file.text.contains("' '__ASP_FORMAT_1_START__ must remain an ordinary user comment"))
+        assertTrue(file.text, file.text.contains("value = 1"))
+        assertEquals(source.filterNot(Char::isWhitespace), file.text.filterNot(Char::isWhitespace))
+        val onceFormatted = file.text
+        reformat(file)
+        assertEquals("Marker-like user text must remain idempotent", onceFormatted, file.text)
     }
 
     private fun assertReformatted(before: String, after: String) {

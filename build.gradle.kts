@@ -1,12 +1,12 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.20"
-    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.grammarkit") version "2023.3.0.3"
 }
 
 group = "dvamuch"
-version = "v0.0.8"
+version = "1.0.0-rc3"
 
 repositories {
     mavenCentral()
@@ -19,12 +19,9 @@ repositories {
 dependencies {
     intellijPlatform {
         val localIdePath = providers.gradleProperty("localIdePath").orNull
-        if (localIdePath != null) local(localIdePath) else phpstorm("2026.1.2")
+        if (localIdePath != null) local(localIdePath) else phpstorm("2026.2.2")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-
-
-        // Add plugin dependencies for compilation here, example:
-        // bundledPlugin("com.intellij.java")
+        bundledPlugin("intellij.structureView.plugin")
     }
     testImplementation("junit:junit:4.13.2")
 }
@@ -32,14 +29,15 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "261.24374"
+            sinceBuild = "262.10315"
         }
 
         changeNotes = """
-            Makes platform HTML quick-fixes safe inside compound ASP attributes.
-            File-reference case corrections and HTTP-to-HTTPS actions now change only their static ranges and preserve embedded ASP expressions.
-            Generic HTML edits that would cross an ASP scriptlet are rejected without changing the document.
-            Also stabilizes repeated formatting of nested ASP blocks containing blank lines.
+            <ul>
+              <li>Fixes Find Usages for user-class members declared in included ASP/INC files.</li>
+              <li>Keeps same-named members from unrelated classes out of include-aware usage results.</li>
+              <li>Replaces deprecated ReadAction API calls for forward compatibility with future IDE releases.</li>
+            </ul>
         """.trimIndent()
     }
 }
@@ -48,8 +46,8 @@ intellijPlatform {
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+        sourceCompatibility = "25"
+        targetCompatibility = "25"
     }
 
     runIde {
@@ -58,6 +56,10 @@ tasks {
 }
 
 tasks.withType<Test>().configureEach {
+    // Platform 262/JDK 25 exposes Kotlin companion and helper classes to
+    // Gradle's JUnit scanner. Only top-level test classes are executable.
+    include("**/*Test.class")
+
     providers.gradleProperty("ttsProjectDir").orNull?.let { ttsProjectDir ->
         systemProperty("tts.project.dir", ttsProjectDir)
         maxHeapSize = "2g"
@@ -67,12 +69,21 @@ tasks.withType<Test>().configureEach {
             "ttsBatchSize" to "tts.batch.size",
             "ttsBatchIndex" to "tts.batch.index",
             "ttsPathFilter" to "tts.path.filter",
-            "ttsEditorPathFilter" to "tts.editor.path.filter"
+            "ttsEditorPathFilter" to "tts.editor.path.filter",
+            "ttsHtmlAlignText" to "tts.html.align.text",
+            "ttsFormatDiagnosticsDir" to "tts.format.diagnostics.dir",
+            "ttsFormatPerformanceTrace" to "asp.format.performance.trace"
         ).forEach { (gradleProperty, systemPropertyName) ->
             providers.gradleProperty(gradleProperty).orNull?.let { value ->
                 systemProperty(systemPropertyName, value)
             }
         }
+    }
+}
+
+tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") {
+    from("LICENSE") {
+        into("META-INF")
     }
 }
 
@@ -84,7 +95,7 @@ tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("pr
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
 }
 

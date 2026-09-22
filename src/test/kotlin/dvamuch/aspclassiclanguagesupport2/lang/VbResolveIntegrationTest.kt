@@ -209,7 +209,9 @@ class VbResolveIntegrationTest : BasePlatformTestCase() {
 
         val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
         val resolved = reference.resolve()
-        assertNotNull("Caret reference should resolve", resolved)
+        val ancestry = generateSequence(myFixture.file.findElementAt(myFixture.caretOffset)) { it.parent }
+            .joinToString(" -> ") { "${it.javaClass.simpleName}:${it.text.take(80)}" }
+        assertNotNull("Caret reference should resolve; PSI: $ancestry", resolved)
         val function = PsiTreeUtil.getParentOfType(
             resolved,
             dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbFunctionStmt::class.java,
@@ -237,10 +239,165 @@ class VbResolveIntegrationTest : BasePlatformTestCase() {
         assertNull("A local from another procedure must not resolve", reference.resolve())
     }
 
+    fun testResolvesMemberOfUserClassInstance() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Dim worker
+            Set worker = New Worker
+            worker.<caret>Run
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Run")
+    }
+
+    fun testResolvesUserClassMemberInsideWithBlock() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Dim worker
+            Set worker = New Worker
+            With worker
+                .<caret>Run
+            End With
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Run")
+    }
+
+    fun testOptionExplicitDisablesImplicitAssignmentDeclaration() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Option Explicit
+            missing = 1
+            Response.Write <caret>missing
+            """.trimIndent()
+        )
+
+        val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
+        assertNull("Option Explicit must not turn a bare assignment into a declaration", reference.resolve())
+    }
+
+    fun testUnknownObjectMemberDoesNotFallBackToUnrelatedGlobalSymbol() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Sub Run()
+            End Sub
+
+            unknown.<caret>Run
+            """.trimIndent()
+        )
+
+        val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
+        assertNull("A dotted member must not resolve by its bare name", reference.resolve())
+    }
+
+    fun testResolvesMemberOnDirectNewExpression() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            (New Worker).<caret>Run
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Run")
+    }
+
+    fun testResolvesMemberThroughUserClassReturnValue() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Class Factory
+                Public Function CreateWorker()
+                    Set CreateWorker = New Worker
+                End Function
+            End Class
+
+            Dim factory
+            Set factory = New Factory
+            factory.CreateWorker().<caret>Run
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Run")
+    }
+
+    fun testResolvesPrivateMemberThroughMeInsideClass() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Private Sub Reset()
+                End Sub
+
+                Public Sub Run()
+                    Me.<caret>Reset
+                End Sub
+            End Class
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Reset")
+    }
+
+    fun testResolvesMemberInsideNestedWith() {
+        myFixture.configureByText(
+            VbScriptFileType,
+            """
+            Class Worker
+                Public Sub Run()
+                End Sub
+            End Class
+
+            Class Factory
+                Public Function Current()
+                    Set Current = New Worker
+                End Function
+            End Class
+
+            Dim factory
+            Set factory = New Factory
+            With factory
+                With .Current()
+                    .<caret>Run
+                End With
+            End With
+            """.trimIndent()
+        )
+
+        assertResolvesCaretReferenceTo("Run")
+    }
+
     private fun assertResolvesCaretReferenceTo(expectedName: String) {
         val reference = myFixture.getReferenceAtCaretPositionWithAssertion()
         val resolved = reference.resolve()
-        assertNotNull("Caret reference should resolve", resolved)
+        val ancestry = generateSequence(myFixture.file.findElementAt(myFixture.caretOffset)) { it.parent }
+            .joinToString(" -> ") { "${it.javaClass.simpleName}:${it.text.take(80)}" }
+        assertNotNull("Caret reference should resolve; PSI: $ancestry", resolved)
         assertTrue(
             "Expected '$expectedName', got '${resolved?.text}'",
             resolved!!.text.equals(expectedName, ignoreCase = true)

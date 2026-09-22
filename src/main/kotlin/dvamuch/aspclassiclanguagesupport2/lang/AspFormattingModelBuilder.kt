@@ -12,6 +12,8 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.SyntaxTraverser
 import com.intellij.psi.codeStyle.CodeStyleSettings
 import com.intellij.psi.formatter.xml.XmlFormattingPolicy
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.xml.XmlElementType
 import com.intellij.xml.template.formatter.AbstractXmlTemplateFormattingModelBuilder
 import com.intellij.xml.template.formatter.TemplateLanguageBlock
@@ -66,11 +68,24 @@ class AspFormattingModelBuilder : AbstractXmlTemplateFormattingModelBuilder() {
         indent: Indent?
     ): List<Block> {
         val markupFile = file.viewProvider.getPsi(com.intellij.lang.html.HTMLLanguage.INSTANCE) ?: return emptyList()
-        return SyntaxTraverser.psiTraverser(markupFile)
-            .filter(AspOuterPsiElement::class.java)
+        val outerElements = outerElements(markupFile)
+        if (outerElements.isEmpty()) return emptyList()
+
+        var low = 0
+        var high = outerElements.size
+        while (low < high) {
+            val middle = (low + high) ushr 1
+            if (outerElements[middle].textRange.endOffset <= range.startOffset) {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+
+        return outerElements.asSequence()
+            .drop(low)
+            .takeWhile { element -> element.textRange.startOffset < range.endOffset }
             .filter { element -> range.intersects(element.textRange) }
-            .toList()
-            .sortedBy { element -> element.textRange.startOffset }
             .map { element ->
                 createTemplateLanguageBlock(
                     element.node,
@@ -81,6 +96,19 @@ class AspFormattingModelBuilder : AbstractXmlTemplateFormattingModelBuilder() {
                     null
                 )
             }
+            .toList()
+    }
+
+    private fun outerElements(markupFile: PsiFile): List<AspOuterPsiElement> {
+        return CachedValuesManager.getCachedValue(markupFile) {
+            val startedAt = System.nanoTime()
+            val elements = SyntaxTraverser.psiTraverser(markupFile)
+                .filter(AspOuterPsiElement::class.java)
+                .toList()
+                .sortedBy { element -> element.textRange.startOffset }
+            AspFormatPerformanceTrace.record("html-template-block-index", markupFile, startedAt)
+            CachedValueProvider.Result.create(elements, markupFile)
+        }
     }
 
     private fun unwrapTextBlockContainingAsp(block: Block): List<Block> {

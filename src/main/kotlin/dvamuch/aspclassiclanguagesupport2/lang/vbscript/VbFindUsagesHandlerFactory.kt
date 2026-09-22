@@ -33,7 +33,7 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
         val declarationId = element as? VbId ?: return false
         val userScope = options.searchScope
         val fastTrack = options.fastTrack
-        val localScope = ReadAction.compute<LocalSearchScope, RuntimeException> {
+        val localScope = ReadAction.computeBlocking<LocalSearchScope, RuntimeException> {
             LocalSearchScope(element.containingFile)
         }
         options.searchScope = localScope

@@ -31,8 +31,10 @@ internal class VbFileSymbolTable private constructor(
         }
 
         private fun build(file: PsiFile): VbFileSymbolTable {
+            val implicitDeclarationsAllowed =
+                PsiTreeUtil.findChildOfType(file, VbOptionStmt::class.java) == null
             val declarations = PsiTreeUtil.collectElementsOfType(file, VbId::class.java)
-                .mapNotNull(VbDeclarationUtil::declaration)
+                .mapNotNull { id -> VbDeclarationUtil.declaration(id, implicitDeclarationsAllowed) }
             val declarationsByName = declarations.groupBy { declaration ->
                 normalizeName((declaration.id as? VbNamedElement)?.name.orEmpty())
             }
@@ -43,6 +45,10 @@ internal class VbFileSymbolTable private constructor(
 
 internal object VbDeclarationUtil {
     fun declaration(id: VbId): VbDeclaration? {
+        return declaration(id, implicitDeclarationsAllowed(id))
+    }
+
+    internal fun declaration(id: VbId, implicitDeclarationsAllowed: Boolean): VbDeclaration? {
         val implicit = when (val parent = id.parent) {
             is VbVarDecl,
             is VbConstDecl,
@@ -53,9 +59,9 @@ internal object VbDeclarationUtil {
             is VbClassStmt -> false
 
             is VbForStmt,
-            is VbForeachStmt -> true
+            is VbForeachStmt -> if (implicitDeclarationsAllowed) true else return null
 
-            else -> if (isImplicitAssignmentDeclaration(id)) true else return null
+            else -> if (implicitDeclarationsAllowed && isImplicitAssignmentDeclaration(id)) true else return null
         }
 
         return VbDeclaration(id, declarationScope(id), implicit)
@@ -100,6 +106,11 @@ internal object VbDeclarationUtil {
 
         // Treat bare assignments (including SET/LET) as implicit declarations.
         return assignment.textOffset <= id.textOffset
+    }
+
+    private fun implicitDeclarationsAllowed(id: VbId): Boolean {
+        val file = id.containingFile ?: return true
+        return PsiTreeUtil.findChildOfType(file, VbOptionStmt::class.java) == null
     }
 }
 

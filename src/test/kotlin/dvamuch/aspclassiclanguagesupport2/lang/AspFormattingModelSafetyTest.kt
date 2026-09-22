@@ -4,15 +4,98 @@ import com.intellij.formatting.Block
 import com.intellij.formatting.FormattingContext
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.application.options.CodeStyle
+import com.intellij.psi.formatter.xml.HtmlCodeStyleSettings
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
 import java.nio.file.Files
 import java.nio.file.Path
 
 /** Diagnostic regressions: every meaningful character must belong to a leaf block. */
 class AspFormattingModelSafetyTest : BasePlatformTestCase() {
+    fun testWholeOperationGuardRestoresChangesMadeBeforePostProcessor() {
+        val source = """
+            <div>
+                <% If ready Then %>
+                <span><%= value %></span>
+                <% End If %>
+            </div>
+        """.trimIndent()
+        val file = myFixture.configureByText("guard.asp", source)
+        val document = myFixture.editor.document
+        val documentManager = PsiDocumentManager.getInstance(project)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            AspFormatOperationGuard.capture(file, TextRange(0, file.textLength))
+            val destructiveStart = document.text.indexOf("value")
+            document.deleteString(destructiveStart, destructiveStart + "value".length)
+            documentManager.commitDocument(document)
+            AspPostFormatProcessor().processText(
+                file,
+                TextRange(0, file.textLength),
+                CodeStyle.getSettings(file)
+            )
+        }
+        documentManager.commitAllDocuments()
+
+        assertEquals("The whole-operation guard must restore pre-format content", source, file.text)
+        myFixture.performEditorAction(IdeActions.ACTION_UNDO)
+        documentManager.commitAllDocuments()
+        assertEquals("Undo after a guarded reformat must keep the original content", source, file.text)
+    }
+
+    fun testCancelledOperationSnapshotCannotRestoreLaterCommand() {
+        val source = "<div><%= value %></div>"
+        val file = myFixture.configureByText("cancelled-guard.asp", source)
+        val document = myFixture.editor.document
+        val documentManager = PsiDocumentManager.getInstance(project)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            AspFormatOperationGuard.capture(file, TextRange(0, file.textLength))
+            // Simulate cancellation before the post-processor consumes this snapshot.
+        }
+        WriteCommandAction.runWriteCommandAction(project) {
+            val start = document.text.indexOf("value")
+            document.replaceString(start, start + "value".length, "other")
+            documentManager.commitDocument(document)
+            AspPostFormatProcessor().processText(
+                file,
+                TextRange(0, 1),
+                CodeStyle.getSettings(file)
+            )
+        }
+        documentManager.commitAllDocuments()
+
+        assertEquals("A stale guard must not overwrite a later command", "<div><%= other %></div>", file.text)
+    }
+
+    fun testGuardUsesCurrentUnsavedDocumentAsRollbackBaseline() {
+        val file = myFixture.configureByText("unsaved-guard.asp", "<div><%= value %></div>")
+        val document = myFixture.editor.document
+        val documentManager = PsiDocumentManager.getInstance(project)
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            val valueOffset = document.text.indexOf("value")
+            document.replaceString(valueOffset, valueOffset + "value".length, "unsavedValue")
+            // capture() must commit and snapshot the current editor text, not stale PSI.
+            AspFormatOperationGuard.capture(file, TextRange(0, document.textLength))
+            val destructiveOffset = document.text.indexOf("unsavedValue")
+            document.deleteString(destructiveOffset, destructiveOffset + "unsavedValue".length)
+            documentManager.commitDocument(document)
+            AspPostFormatProcessor().processText(
+                file,
+                TextRange(0, file.textLength),
+                CodeStyle.getSettings(file)
+            )
+        }
+        documentManager.commitAllDocuments()
+
+        assertEquals("<div><%= unsavedValue %></div>", file.text)
+    }
+
     fun testPartialReformatAroundScriptletBoundaries() {
         val source = """
             <div>
@@ -109,6 +192,17 @@ class AspFormattingModelSafetyTest : BasePlatformTestCase() {
         for (relativePath in paths) {
             val source = Files.readString(Path.of(root, relativePath)).replace("\r\n", "\n").removePrefix("\uFEFF")
             val file = myFixture.configureByText("safety.asp", source)
+            // This diagnostic verifies content preservation and idempotence.
+            // Keyword casing is an intentional transformation covered by the
+            // formatter integration tests, so keep it out of this safety oracle.
+            CodeStyle.getSettings(file)
+                .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+                .KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
+            System.getProperty("tts.html.align.text")?.toBooleanStrictOrNull()?.let { alignText ->
+                CodeStyle.getSettings(file)
+                    .getCustomSettings(HtmlCodeStyleSettings::class.java)
+                    .HTML_ALIGN_TEXT = alignText
+            }
             val gaps = uncoveredCode(file)
             println("FORMAT MODEL $relativePath uncovered=$gaps")
             if (gaps.isNotEmpty()) failures += "$relativePath uncovered: $gaps"
@@ -120,6 +214,12 @@ class AspFormattingModelSafetyTest : BasePlatformTestCase() {
                 myFixture.editor.caretModel.moveToOffset(0)
                 myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
                 PsiDocumentManager.getInstance(project).commitAllDocuments()
+                val diagnosticsPath = System.getProperty("tts.format.diagnostics.dir")
+                if (diagnosticsPath != null && relativePath == "customers/orderinfo.asp" && pass == 0) {
+                    val diagnostics = Path.of(diagnosticsPath)
+                    Files.createDirectories(diagnostics)
+                    Files.writeString(diagnostics.resolve("formatted-current.txt"), file.text)
+                }
                 if (source.filterNot(Char::isWhitespace) != file.text.filterNot(Char::isWhitespace)) {
                     failures += "$relativePath pass $pass changed content"
                 }
@@ -128,13 +228,17 @@ class AspFormattingModelSafetyTest : BasePlatformTestCase() {
                     Files.createDirectories(artifacts)
                     Files.writeString(artifacts.resolve("once.txt"), beforePass)
                     Files.writeString(artifacts.resolve("twice.txt"), file.text)
-                    if (relativePath !in KNOWN_NON_IDEMPOTENT_FIXTURES) {
-                        failures += "$relativePath second reformat was not idempotent"
-                    } else {
-                        println("EDITOR REFORMAT KNOWN WHITESPACE DRIFT $relativePath artifacts=$artifacts")
-                    }
+                    failures += "$relativePath second reformat was not idempotent; artifacts=$artifacts"
                 }
-                println("EDITOR REFORMAT END $relativePath pass=${pass + 1} ${(System.nanoTime() - started) / 1_000_000}ms")
+                val elapsedMillis = (System.nanoTime() - started) / 1_000_000
+                println("EDITOR REFORMAT END $relativePath pass=${pass + 1} ${elapsedMillis}ms")
+                if (relativePath == "customers/orderinfo.asp") {
+                    val limitMillis = if (pass == 0) 6_000 else 4_000
+                    assertTrue(
+                        "$relativePath pass ${pass + 1} took ${elapsedMillis}ms; limit=${limitMillis}ms",
+                        elapsedMillis < limitMillis
+                    )
+                }
                 System.out.flush()
             }
         }
@@ -165,10 +269,4 @@ class AspFormattingModelSafetyTest : BasePlatformTestCase() {
             .toList()
     }
 
-    companion object {
-        // PhpStorm's HTML formatter needs an additional pass to settle some
-        // indentation in this large, malformed legacy document. Both passes
-        // are still required to preserve the exact non-whitespace skeleton.
-        private val KNOWN_NON_IDEMPOTENT_FIXTURES = setOf("customers/orderinfo.asp")
-    }
 }

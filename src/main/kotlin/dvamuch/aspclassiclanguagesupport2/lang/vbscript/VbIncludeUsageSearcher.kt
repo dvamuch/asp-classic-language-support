@@ -37,13 +37,13 @@ internal object VbIncludeUsageSearcher {
         processor: Processor<in UsageInfo>
     ): Boolean {
         if (userScope !is GlobalSearchScope) return true
-        val context = ReadAction.compute<SearchContext?, RuntimeException> {
+        val context = ReadAction.computeBlocking<SearchContext?, RuntimeException> {
             prepareInReadAction(element, userScope)
         } ?: return true
 
         for (consumerFile in context.candidateFiles) {
             ProgressManager.checkCanceled()
-            val completed = ReadAction.compute<Boolean, RuntimeException> {
+            val completed = ReadAction.computeBlocking<Boolean, RuntimeException> {
                 processFileInReadAction(consumerFile, context, processor)
             }
             if (!completed) return false
@@ -56,6 +56,7 @@ internal object VbIncludeUsageSearcher {
         val name: String,
         val declarationLocation: VbAspPsiUtil.HostLocation,
         val declarationAspUrl: String,
+        val isTopLevelDeclaration: Boolean,
         val candidateFiles: List<VirtualFile>,
         val includedDeclarationCache: MutableMap<String, Boolean> = mutableMapOf()
     )
@@ -65,7 +66,6 @@ internal object VbIncludeUsageSearcher {
         userScope: GlobalSearchScope
     ): SearchContext? {
         val declaration = VbDeclarationUtil.declaration(declarationId) ?: return null
-        if (declaration.scope !is PsiFile) return null
 
         val name = (declarationId as? VbNamedElement)?.name ?: return null
         val declarationLocation = VbAspPsiUtil.hostLocation(declarationId) ?: return null
@@ -87,6 +87,7 @@ internal object VbIncludeUsageSearcher {
             name,
             declarationLocation,
             declarationAspFile.virtualFile.url,
+            declaration.scope is PsiFile,
             candidateFiles(name, consumerScope)
         )
     }
@@ -98,9 +99,11 @@ internal object VbIncludeUsageSearcher {
     ): Boolean {
         val consumerAspFile = PsiManager.getInstance(context.project).findFile(consumerFile)
             ?.let(VbAspPsiUtil::aspPsi) ?: return true
-        if (!targetIsFirstIncludedDeclaration(consumerAspFile, context)) return true
+        if (context.isTopLevelDeclaration && !targetIsFirstIncludedDeclaration(consumerAspFile, context)) {
+            return true
+        }
         val scan = VbAspIdentifierScanner.scan(consumerAspFile, context.name)
-        if (!scan.requiresPsiResolution) {
+        if (context.isTopLevelDeclaration && !scan.requiresPsiResolution) {
             for (range in scan.ranges) {
                 if (!processor.process(UsageInfo(consumerAspFile, range.startOffset, range.endOffset, false))) {
                     return false
