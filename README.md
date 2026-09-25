@@ -1,14 +1,29 @@
-# ASP Classic Language Support for IntelliJ IDEA
+# ASP Classic Language Support for JetBrains IDEs
 
 An IntelliJ Platform plugin that adds support for **ASP Classic** files with **VBScript** engine (`.asp`, `.inc`).
 
 Modern IDEs often lack proper support for legacy technologies like ASP Classic. 
-This plugin aims to make the maintenance of legacy codebases more comfortable by providing essential IDE features within PHPStorm, IntelliJ IDEA, and other JetBrains tools.
+This plugin aims to make the maintenance of legacy codebases more comfortable by providing essential IDE features within PhpStorm, IntelliJ IDEA, WebStorm, and other JetBrains tools.
 
 ## Current Status
 
 The plugin is a working MVP for day-to-day navigation and editing of ASP Classic
-projects. The current source version is `1.0.0-rc3` and targets PhpStorm 2026.2.2.
+projects. The current source version is `1.0.0-rc3` and requires IntelliJ
+Platform build `262.10315` or later.
+
+### Tested IDEs
+
+| IDE | Version and build | Validation |
+| --- | --- | --- |
+| PhpStorm | 2026.2.2 (`PS-262.10315.130`) | Primary development target: complete automated suite, full TTS corpus audits, and real-project manual use |
+| IntelliJ IDEA Ultimate | 2026.2.2 (`IU-262.10315.125`) | Plugin Verifier and a 103-test functional smoke suite |
+| WebStorm | 2026.2.2 (`WS-262.10315.144`) | Plugin Verifier and a 103-test functional smoke suite |
+| PhpStorm EAP | 2026.3 (`PS-263.5153.42`) | Plugin Verifier |
+
+Marketplace may offer the plugin in additional IntelliJ Platform products when
+their declared platform modules satisfy the plugin dependencies. Those products
+have not yet been tested by the project; please report product-specific issues
+with the IDE name and exact build number.
 
 ### What works now:
 - **File Recognition**: Supports `.asp`, `.inc` and `.vbs` files.
@@ -86,8 +101,10 @@ If you want to help:
 
 ### Development Note
 
-The development and test target is **PhpStorm 2026.2.2 (PS-262.10315.130)**.
-New builds require platform 262.10315 or later. The previous 2026.1.2 test
+The primary development and full-suite test target is **PhpStorm 2026.2.2
+(PS-262.10315.130)**. IntelliJ IDEA Ultimate and WebStorm 2026.2.2 are covered
+by the cross-IDE smoke suite shown above. New builds require platform 262.10315
+or later. The previous 2026.1.2 test
 baseline was retired after the development machine moved from macOS 13 to the
 current macOS and PhpStorm installation. Gradle itself requires a Java 17+
 launcher. Compilation and tests use Java 25, matching the target platform;
@@ -99,7 +116,19 @@ Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
 ```bash
 ./gradlew test
 ./gradlew buildPlugin
+./gradlew verifyPlugin
 ./gradlew runIde
+```
+
+`verifyPlugin` checks the built plugin against the supported PhpStorm line plus
+IntelliJ IDEA Ultimate and WebStorm 2026.2.2. To run the functional tests on a
+different locally installed IDE, pass its product directory as `localIdePath`;
+the repository's cross-IDE validation uses a focused smoke subset for products
+other than the primary PhpStorm target.
+
+```bash
+./gradlew test -PcrossIdeSmoke \
+  -PlocalIdePath=/absolute/path/to/WebStorm.app/Contents
 ```
 
 On macOS, when no system JDK is installed, the wrapper automatically uses the
@@ -115,8 +144,9 @@ JAVA_HOME=/Applications/PhpStorm.app/Contents/jbr/Contents/Home ./gradlew test
 To reuse the exact supported installation instead of downloading PhpStorm, pass
 `-PlocalIdePath=/absolute/path/to/PhpStorm.app/Contents` to any of these commands.
 The installation is read as an SDK; tests use a separate sandbox, not your
-working IDE profile. `AspPlatformCompatibilityTest` asserts the exact test build.
-At present, a local test SDK must therefore be build `PS-262.10315.130`.
+working IDE profile. `AspPlatformCompatibilityTest` asserts the exact primary
+PhpStorm test build, so it is intentionally omitted from focused cross-IDE
+smoke runs.
 
 The normal `test` task runs the repository fixtures and synthetic regressions.
 Tests that depend on the external TTS checkout are skipped unless
@@ -187,7 +217,9 @@ Release boundaries are listed in
 [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md), while work intentionally
 deferred past 1.0 lives in
 [`docs/POST_1_0_ROADMAP.md`](docs/POST_1_0_ROADMAP.md).
-The current artifact and manual acceptance checklist are recorded in
+The current artifact and validation record are in
+[`docs/RELEASE_1_0_RC3.md`](docs/RELEASE_1_0_RC3.md); the original manual
+acceptance checklist is retained in
 [`docs/RELEASE_1_0_RC1.md`](docs/RELEASE_1_0_RC1.md).
 
 ## License

@@ -18,7 +18,11 @@
 ## Validation
 
 - The complete ordinary Gradle test suite passes on PhpStorm 2026.2.2.
-- Plugin Verifier reports compatibility with PhpStorm 2026.2 and 2026.3.
+- A focused 103-test functional smoke suite passes on IntelliJ IDEA Ultimate
+  2026.2.2 and WebStorm 2026.2.2. It covers formatting, completion, resolve,
+  inspections and include-aware Find Usages.
+- Plugin Verifier reports compatibility with PhpStorm 2026.2 and 2026.3,
+  IntelliJ IDEA Ultimate 2026.2.2 and WebStorm 2026.2.2.
 - Plugin Verifier reports no deprecated API usages.
 - Plugin structure and project configuration checks pass.
 

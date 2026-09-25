@@ -18,7 +18,8 @@
 - `customers/orderinfo.asp` editor reformat is idempotent and stays below the
   6 s / 4 s regression limits.
 - Plugin Verifier: compatible with PhpStorm 2026.2 and 2026.3, 0 compatibility
-  errors. Three deprecated `ReadAction.compute` usages are accepted for 1.0.
+  errors. At the rc1 stage, three deprecated `ReadAction.compute` usages were
+  accepted; they were removed before rc3.
 - Isolated PhpStorm 2026.2.2 sandbox starts and logs the plugin as loaded.
 - ZIP contains one plugin JAR, both plugin icons, no bundled Kotlin runtime and
   no debug action.

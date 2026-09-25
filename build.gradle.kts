@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.20"
@@ -40,6 +42,20 @@ intellijPlatform {
             </ul>
         """.trimIndent()
     }
+
+    pluginVerification {
+        ides {
+            // Keep the recommended PhpStorm baseline/future checks and verify
+            // the two most relevant additional IntelliJ Platform products.
+            recommended()
+            create(IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.2") {
+                useInstaller = false
+            }
+            create(IntelliJPlatformType.WebStorm, "2026.2.2") {
+                useInstaller = false
+            }
+        }
+    }
 }
 
 
@@ -59,6 +75,17 @@ tasks.withType<Test>().configureEach {
     // Platform 262/JDK 25 exposes Kotlin companion and helper classes to
     // Gradle's JUnit scanner. Only top-level test classes are executable.
     include("**/*Test.class")
+
+    if (providers.gradleProperty("crossIdeSmoke").isPresent) {
+        filter {
+            includeTestsMatching("*.AspFormatterIntegrationTest")
+            includeTestsMatching("*.VbCompletionIntegrationTest")
+            includeTestsMatching("*.VbResolveIntegrationTest")
+            includeTestsMatching("*.VbIncludeFindUsagesTest")
+            includeTestsMatching("*.AspMissingIncludeInspectionTest")
+            includeTestsMatching("*.VbUnresolvedIdentifierInspectionTest")
+        }
+    }
 
     providers.gradleProperty("ttsProjectDir").orNull?.let { ttsProjectDir ->
         systemProperty("tts.project.dir", ttsProjectDir)
@@ -91,6 +118,17 @@ tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("pr
     // Vue LSP assumes its production plugin classloader layout and fails in the
     // platform test classloader. ASP tests still exercise bundled HTML/JS/CSS.
     disabledPlugins.add("org.jetbrains.plugins.vue")
+
+    // IntelliJ IDEA Ultimate contains an obfuscated post-startup extension
+    // whose constructor cannot be instantiated by the headless test container.
+    // It is unrelated to ASP support, so omit only that IDEA product layer for
+    // cross-IDE smoke tests. Other IDEs need their product module intact.
+    providers.gradleProperty("localIdePath").orNull
+        ?.takeIf {
+            it.contains("idea-", ignoreCase = true) ||
+                it.contains("IntelliJ IDEA", ignoreCase = true)
+        }
+        ?.let { disabledPlugins.add("com.intellij.modules.ultimate") }
 }
 
 kotlin {

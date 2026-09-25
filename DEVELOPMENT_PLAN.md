@@ -86,7 +86,7 @@
 - версия `0.0.8` была собрана на PhpStorm 2026.1.2; текущая `1.0.0-rc3` собирается
   после обновления рабочей машины с macOS 13 на PhpStorm 2026.2.2
   (PS-262.10315.130), минимальная совместимая сборка — 262.10315;
-- на PhpStorm 2026.2.2 проходят все 206 обычных автоматических тестов и сборка
+- на PhpStorm 2026.2.2 проходят все 209 обычных автоматических тестов и сборка
   plugin ZIP; на 262 повторно проверены 21 файл `Bugs/`, 8 файлов `core`/DAL,
   реальные editor-сценарии `Bugs/index.asp`, `Bugs/BugAdd.asp`,
   `Bugs/BugInfo.asp`, `customers/orderinfo.asp` и все 2200 поддерживаемых файлов
@@ -165,9 +165,11 @@ ASP Classic, а не завершение всего возможного фун
   [`docs/TTS_PARSER_REVIEW_BACKLOG.md`](docs/TTS_PARSER_REVIEW_BACKLOG.md).
 - [x] Очистить plugin metadata и repository от шаблонных/debug-компонентов,
   подготовить описание, change notes, лицензию, иконки и известные ограничения.
-- [x] Пройти полный test suite, собрать ZIP и Plugin Verifier на поддерживаемых
-  PhpStorm 2026.2/2026.3. Verifier: compatible, 0 compatibility errors и
-  0 deprecated API usages; устаревшие вызовы `ReadAction.compute` заменены в
+- [x] Пройти полный test suite на PhpStorm 2026.2.2, собрать ZIP и запустить
+  Plugin Verifier на PhpStorm 2026.2/2026.3, IntelliJ IDEA Ultimate 2026.2.2 и
+  WebStorm 2026.2.2. Verifier: compatible, 0 compatibility errors и
+  0 deprecated API usages; focused smoke-набор из 103 тестов проходит на IDEA
+  Ultimate и WebStorm. Устаревшие вызовы `ReadAction.compute` заменены в
   `1.0.0-rc3`.
 - [x] Запустить PhpStorm 2026.2.2 с изолированным sandbox: startup log
   подтверждает загрузку `ASP Classic Language Support (1.0.0-rc1)` без ошибок
