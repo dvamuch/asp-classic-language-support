@@ -1,0 +1,95 @@
+name: Publish to JetBrains Marketplace
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: JetBrains Marketplace release channel
+        required: true
+        default: default
+        type: choice
+        options:
+          - default
+          - beta
+          - eap
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jetbrains-marketplace-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Select Marketplace channel
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_CHANNEL: ${{ inputs.channel }}
+          RELEASE_IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            channel="$MANUAL_CHANNEL"
+          elif [[ "$RELEASE_IS_PRERELEASE" == "true" ]]; then
+            channel="eap"
+          else
+            channel="default"
+          fi
+          echo "PUBLISH_CHANNEL=$channel" >> "$GITHUB_ENV"
+          echo "Marketplace channel: $channel" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require Marketplace token
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+        run: |
+          if [[ -z "$PUBLISH_TOKEN" ]]; then
+            echo "Missing GitHub Actions secret JETBRAINS_MARKETPLACE_TOKEN" >&2
+            exit 1
+          fi
+
+      - name: Validate release tag and plugin version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          tag_version="${RELEASE_TAG#v}"
+          project_version="$(./gradlew properties -q | sed -n 's/^version: //p' | tail -n 1)"
+          if [[ -z "$project_version" || "$tag_version" != "$project_version" ]]; then
+            echo "Release tag $RELEASE_TAG does not match Gradle version $project_version" >&2
+            exit 1
+          fi
+
+      - name: Run release checks
+        run: ./gradlew test verifyPluginProjectConfiguration verifyPluginStructure
+
+      - name: Publish plugin
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+        run: ./gradlew publishPlugin
+
+      - name: Record published version
+        if: success()
+        run: |
+          project_version="$(./gradlew properties -q | sed -n 's/^version: //p' | tail -n 1)"
+          echo "Published version $project_version to channel $PUBLISH_CHANNEL." >> "$GITHUB_STEP_SUMMARY"

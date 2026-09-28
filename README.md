@@ -134,6 +134,11 @@ Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
 ./gradlew runIde
 ```
 
+Marketplace updates are published by GitHub Actions when a GitHub Release is
+published, or manually from the **Publish to JetBrains Marketplace** workflow.
+The one-time token setup and release procedure are documented in
+[`docs/PUBLISHING.md`](docs/PUBLISHING.md).
+
 `verifyPlugin` checks the built plugin against the supported stable PhpStorm
 line plus IntelliJ IDEA Ultimate, WebStorm and PyCharm. A locally installed
 PhpStorm EAP can be included with `futurePhpstormIdePath`; keeping a moving EAP

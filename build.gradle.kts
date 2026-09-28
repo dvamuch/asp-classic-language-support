@@ -47,6 +47,13 @@ intellijPlatform {
         """.trimIndent()
     }
 
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+        channels = providers.environmentVariable("PUBLISH_CHANNEL")
+            .map { listOf(it) }
+            .orElse(listOf("default"))
+    }
+
     pluginVerification {
         ides {
             create(IntelliJPlatformType.PhpStorm, "2025.2.4") {
