@@ -7,23 +7,37 @@ This plugin aims to make the maintenance of legacy codebases more comfortable by
 
 ## Current Status
 
-The plugin is a working MVP for day-to-day navigation and editing of ASP Classic
-projects. The current source version is `1.0.0-rc3` and requires IntelliJ
-Platform build `262.10315` or later.
+The plugin is ready for day-to-day navigation and editing of ASP Classic
+projects. The current source version is `1.0.0` and requires IntelliJ
+Platform build `252.27397` or later.
 
 ### Tested IDEs
 
 | IDE | Version and build | Validation |
 | --- | --- | --- |
+| PhpStorm | 2025.2.4 (`PS-252.27397.112`) | Compatibility baseline: complete 212-test suite and Plugin Verifier |
 | PhpStorm | 2026.2.2 (`PS-262.10315.130`) | Primary development target: complete automated suite, full TTS corpus audits, and real-project manual use |
 | IntelliJ IDEA Ultimate | 2026.2.2 (`IU-262.10315.125`) | Plugin Verifier and a 103-test functional smoke suite |
 | WebStorm | 2026.2.2 (`WS-262.10315.144`) | Plugin Verifier and a 103-test functional smoke suite |
+| PyCharm | 2026.2.3 (`PY-262.10968.92`) | Plugin Verifier, a 103-test functional smoke suite, and manual demo-project validation |
 | PhpStorm EAP | 2026.3 (`PS-263.5153.42`) | Plugin Verifier |
 
 Marketplace may offer the plugin in additional IntelliJ Platform products when
 their declared platform modules satisfy the plugin dependencies. Those products
 have not yet been tested by the project; please report product-specific issues
 with the IDE name and exact build number.
+
+### Feedback
+
+If the plugin helps with your ASP Classic project, please consider leaving an
+[honest Marketplace review](https://plugins.jetbrains.com/plugin/34424-asp-classic-language-support/reviews).
+Bug reports and feature suggestions are welcome through the repository's
+[issue forms](https://github.com/Dvamuch/asp-classic-language-support/issues/new/choose).
+Please include the IDE name, exact build number and plugin version.
+
+Version 1.0.0 may show this invitation once after at least a week and eight ASP,
+INC or VBS file openings. The prompt is non-modal, is never repeated, and does
+not collect or transmit telemetry.
 
 ### What works now:
 - **File Recognition**: Supports `.asp`, `.inc` and `.vbs` files.
@@ -88,7 +102,7 @@ with the IDE name and exact build number.
   unused-declaration diagnostics without affecting editor responsiveness.
 - [ ] **Global.asa**: Add its server-side script blocks and application/session lifecycle model.
 - [x] **Publication Metadata**: Marketplace name, description, change notes,
-  license and plugin icons are ready for the 1.0 release candidate.
+  license, feedback links and plugin icons are ready for the stable 1.0 release.
 
 ## Contributing
 
@@ -101,14 +115,14 @@ If you want to help:
 
 ### Development Note
 
-The primary development and full-suite test target is **PhpStorm 2026.2.2
-(PS-262.10315.130)**. IntelliJ IDEA Ultimate and WebStorm 2026.2.2 are covered
-by the cross-IDE smoke suite shown above. New builds require platform 262.10315
-or later. The previous 2026.1.2 test
-baseline was retired after the development machine moved from macOS 13 to the
-current macOS and PhpStorm installation. Gradle itself requires a Java 17+
-launcher. Compilation and tests use Java 25, matching the target platform;
-Gradle downloads that toolchain automatically when it is not installed locally.
+The compatibility and ordinary test baseline is **PhpStorm 2025.2.4
+(PS-252.27397.112)**. PhpStorm 2026.2.2 remains the primary current development,
+TTS corpus and real-project target. IntelliJ IDEA Ultimate and WebStorm 2026.2.2
+plus PyCharm 2026.2.3 are covered by the cross-IDE smoke suite shown above. New
+builds require platform 252.27397 or later. Gradle itself requires a Java 17+
+launcher. Compilation and tests use Java 21 so one ZIP can run on both the
+2025.2–2026.1 Java 21 platforms and the Java 25-based 2026.2 platform; Gradle
+downloads the declared toolchain automatically when it is not installed locally.
 Kotlin is 2.3.20 and is not bundled in the plugin ZIP.
 
 Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
@@ -120,20 +134,25 @@ Run the test suite, build a plugin ZIP, or launch an isolated development IDE:
 ./gradlew runIde
 ```
 
-`verifyPlugin` checks the built plugin against the supported PhpStorm line plus
-IntelliJ IDEA Ultimate and WebStorm 2026.2.2. To run the functional tests on a
-different locally installed IDE, pass its product directory as `localIdePath`;
-the repository's cross-IDE validation uses a focused smoke subset for products
-other than the primary PhpStorm target.
+`verifyPlugin` checks the built plugin against the supported stable PhpStorm
+line plus IntelliJ IDEA Ultimate, WebStorm and PyCharm. A locally installed
+PhpStorm EAP can be included with `futurePhpstormIdePath`; keeping a moving EAP
+out of the default matrix makes ordinary release checks reproducible. To run
+the functional tests on a different locally installed IDE, pass its product
+directory as `localIdePath`; the repository's cross-IDE validation uses a
+focused smoke subset for products other than the primary PhpStorm target.
 
 ```bash
 ./gradlew test -PcrossIdeSmoke \
   -PlocalIdePath=/absolute/path/to/WebStorm.app/Contents
+
+./gradlew verifyPlugin \
+  -PfuturePhpstormIdePath=/absolute/path/to/PhpStorm-EAP.app/Contents
 ```
 
 On macOS, when no system JDK is installed, the wrapper automatically uses the
 JBR bundled with PhpStorm from `/Applications` (or `$HOME/Applications`) to
-start Gradle. The build still selects the declared Java 25 toolchain for
+start Gradle. The build still selects the declared Java 21 toolchain for
 compilation and tests. For a non-standard IDE location, point `JAVA_HOME` at
 any Java 17+ runtime explicitly:
 
@@ -143,10 +162,18 @@ JAVA_HOME=/Applications/PhpStorm.app/Contents/jbr/Contents/Home ./gradlew test
 
 To reuse the exact supported installation instead of downloading PhpStorm, pass
 `-PlocalIdePath=/absolute/path/to/PhpStorm.app/Contents` to any of these commands.
-The installation is read as an SDK; tests use a separate sandbox, not your
-working IDE profile. `AspPlatformCompatibilityTest` asserts the exact primary
-PhpStorm test build, so it is intentionally omitted from focused cross-IDE
-smoke runs.
+The installation is read as an SDK; tests use separate runtime directories and
+a sandbox, not your working IDE profile or Gradle's immutable SDK cache.
+`AspPlatformCompatibilityTest` asserts the 2025.2.4 compatibility baseline by
+default, so it is intentionally omitted from focused cross-IDE smoke runs. To
+run the complete suite against another PhpStorm build, pass its exact build as
+`expectedPlatformBuild`, for example:
+
+```bash
+./gradlew test \
+  -PlocalIdePath=/absolute/path/to/PhpStorm.app/Contents \
+  -PexpectedPlatformBuild=262.10315.130
+```
 
 The normal `test` task runs the repository fixtures and synthetic regressions.
 Tests that depend on the external TTS checkout are skipped unless
@@ -218,7 +245,7 @@ Release boundaries are listed in
 deferred past 1.0 lives in
 [`docs/POST_1_0_ROADMAP.md`](docs/POST_1_0_ROADMAP.md).
 The current artifact and validation record are in
-[`docs/RELEASE_1_0_RC3.md`](docs/RELEASE_1_0_RC3.md); the original manual
+[`docs/RELEASE_1_0.md`](docs/RELEASE_1_0.md); the original manual
 acceptance checklist is retained in
 [`docs/RELEASE_1_0_RC1.md`](docs/RELEASE_1_0_RC1.md).
 

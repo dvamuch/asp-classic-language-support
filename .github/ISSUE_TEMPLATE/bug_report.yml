@@ -1,0 +1,50 @@
+name: Bug report
+description: Report incorrect ASP Classic language support or an IDE integration problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ASP Classic Language Support. Please remove confidential project data from examples and logs.
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: ide
+    attributes:
+      label: IDE and build
+      description: Use Help | About to copy the exact product name and build number.
+      placeholder: PyCharm 2026.2.3, PY-262.10968.92
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 26.0, Windows 11, Ubuntu 26.04
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe what happened and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include a small ASP/VBScript example and exact steps when possible.
+      render: vb
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Optional. Remove credentials, customer data, internal URLs, and other confidential information.

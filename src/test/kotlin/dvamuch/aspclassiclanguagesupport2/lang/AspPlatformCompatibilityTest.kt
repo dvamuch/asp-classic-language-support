@@ -7,7 +7,8 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 class AspPlatformCompatibilityTest : BasePlatformTestCase() {
     fun testRunsOnSupportedPhpStormBuild() {
         val info = ApplicationInfo.getInstance()
-        assertEquals("Tests must use the same PhpStorm build as the development target", "262.10315.130", info.build.asStringWithoutProductCode())
+        val expectedBuild = System.getProperty("asp.expected.platform.build", "252.27397.112")
+        assertEquals("Tests must use the explicitly selected PhpStorm build", expectedBuild, info.build.asStringWithoutProductCode())
         assertEquals("PS", info.build.productCode)
         println("ASP test platform: ${info.fullVersion}, ${info.build.asString()}")
     }

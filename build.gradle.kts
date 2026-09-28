@@ -8,7 +8,11 @@ plugins {
 }
 
 group = "dvamuch"
-version = "1.0.0-rc3"
+version = "1.0.0"
+
+// Grammar-Kit loads IntelliJ services in forked Java processes. Keep their
+// runtime state outside the immutable IDE SDK extracted into Gradle's cache.
+val ideBuildRuntimeDir = layout.buildDirectory.dir("idea-build-runtime").get()
 
 repositories {
     mavenCentral()
@@ -21,9 +25,8 @@ repositories {
 dependencies {
     intellijPlatform {
         val localIdePath = providers.gradleProperty("localIdePath").orNull
-        if (localIdePath != null) local(localIdePath) else phpstorm("2026.2.2")
+        if (localIdePath != null) local(localIdePath) else phpstorm("2025.2.4")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-        bundledPlugin("intellij.structureView.plugin")
     }
     testImplementation("junit:junit:4.13.2")
 }
@@ -31,27 +34,42 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "262.10315"
+            sinceBuild = "252.27397"
         }
 
         changeNotes = """
             <ul>
-              <li>Fixes Find Usages for user-class members declared in included ASP/INC files.</li>
-              <li>Keeps same-named members from unrelated classes out of include-aware usage results.</li>
-              <li>Replaces deprecated ReadAction API calls for forward compatibility with future IDE releases.</li>
+              <li>First stable release, promoted after real-world use of the 1.0 release candidates.</li>
+              <li>Supports PhpStorm 2025.2.4 and newer compatible IntelliJ Platform builds.</li>
+              <li>Validated on PhpStorm, IntelliJ IDEA Ultimate, WebStorm and PyCharm.</li>
+              <li>Adds a one-time, non-modal feedback invitation after sustained ASP use. No telemetry is collected.</li>
             </ul>
         """.trimIndent()
     }
 
     pluginVerification {
         ides {
-            // Keep the recommended PhpStorm baseline/future checks and verify
-            // the two most relevant additional IntelliJ Platform products.
-            recommended()
+            create(IntelliJPlatformType.PhpStorm, "2025.2.4") {
+                useInstaller = false
+            }
+            // Keep the stable release matrix reproducible. A locally installed
+            // EAP can be added explicitly because moving EAP coordinates may
+            // disappear or temporarily ship with an incomplete plugin layout.
+            create(IntelliJPlatformType.PhpStorm, "2026.2.3") {
+                useInstaller = false
+            }
+            providers.gradleProperty("futurePhpstormIdePath").orNull?.let { localPath ->
+                local(file(localPath))
+            }
             create(IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.2") {
                 useInstaller = false
             }
             create(IntelliJPlatformType.WebStorm, "2026.2.2") {
+                useInstaller = false
+            }
+            providers.gradleProperty("pycharmIdePath").orNull?.let { localPath ->
+                local(file(localPath))
+            } ?: create(IntelliJPlatformType.PyCharmProfessional, "2026.2.3") {
                 useInstaller = false
             }
         }
@@ -62,8 +80,8 @@ intellijPlatform {
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "25"
-        targetCompatibility = "25"
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
     }
 
     runIde {
@@ -72,6 +90,18 @@ tasks {
 }
 
 tasks.withType<Test>().configureEach {
+    // Keep IDE runtime state out of Gradle's immutable transformed SDK. Recent
+    // platform builds otherwise place telemetry logs under the SDK itself,
+    // which makes the next Gradle invocation reject its own cache entry.
+    val ideRuntimeDir = layout.buildDirectory.dir("idea-test-runtime/$name")
+    systemProperty("idea.system.path", ideRuntimeDir.map { it.dir("system").asFile.absolutePath }.get())
+    systemProperty("idea.config.path", ideRuntimeDir.map { it.dir("config").asFile.absolutePath }.get())
+    systemProperty("idea.log.path", ideRuntimeDir.map { it.dir("log").asFile.absolutePath }.get())
+
+    providers.gradleProperty("expectedPlatformBuild").orNull?.let { expectedBuild ->
+        systemProperty("asp.expected.platform.build", expectedBuild)
+    }
+
     // Platform 262/JDK 25 exposes Kotlin companion and helper classes to
     // Gradle's JUnit scanner. Only top-level test classes are executable.
     include("**/*Test.class")
@@ -133,8 +163,15 @@ tasks.named<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>("pr
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    // Newer IDE SDKs advertise their own runtime level (Java 25 in 2026.2).
+    // Keep the produced plugin bytecode at the oldest supported runtime so the
+    // same archive remains loadable by PhpStorm 2025.2.x (Java 21).
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
 }
 
 sourceSets {
@@ -164,9 +201,17 @@ tasks {
         dependsOn(generateVbScriptParser, generateVbScriptLexer)
     }
     withType<org.jetbrains.grammarkit.tasks.GenerateParserTask> {
+        systemProperty("idea.system.path", ideBuildRuntimeDir.dir("parser/system").asFile.absolutePath)
+        systemProperty("idea.config.path", ideBuildRuntimeDir.dir("parser/config").asFile.absolutePath)
+        systemProperty("idea.log.path", ideBuildRuntimeDir.dir("parser/log").asFile.absolutePath)
         classpath += configurations.detachedConfiguration(
             project.dependencies.create("org.jetbrains.kotlinx:kotlinx-collections-immutable-jvm:0.3.8"),
             project.dependencies.create("io.opentelemetry:opentelemetry-api:1.28.0")
         )
+    }
+    withType<org.jetbrains.grammarkit.tasks.GenerateLexerTask> {
+        systemProperty("idea.system.path", ideBuildRuntimeDir.dir("lexer/system").asFile.absolutePath)
+        systemProperty("idea.config.path", ideBuildRuntimeDir.dir("lexer/config").asFile.absolutePath)
+        systemProperty("idea.log.path", ideBuildRuntimeDir.dir("lexer/log").asFile.absolutePath)
     }
 }

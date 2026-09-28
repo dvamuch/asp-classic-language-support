@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Leave a Marketplace review
+    url: https://plugins.jetbrains.com/plugin/34424-asp-classic-language-support/reviews
+    about: Share your experience to help other ASP Classic developers discover the plugin.

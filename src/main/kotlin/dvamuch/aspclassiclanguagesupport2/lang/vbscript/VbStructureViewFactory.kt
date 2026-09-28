@@ -6,11 +6,14 @@ import com.intellij.ide.structureView.StructureViewModel
 import com.intellij.ide.structureView.StructureViewModelBase
 import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.structureView.TreeBasedStructureViewBuilder
-import com.intellij.ide.structureView.impl.common.PsiTreeElementBase
+import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.lang.PsiStructureViewFactory
+import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.editor.Editor
+import com.intellij.pom.Navigatable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.SmartPointerManager
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbClassStmt
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbFileSymbolTable
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbFunctionStmt
@@ -42,10 +45,10 @@ internal class VbStructureViewBuilder(
 private class VbStructureRootElement(
     physicalFile: PsiFile,
     private val structureFileProvider: () -> PsiFile?
-) : PsiTreeElementBase<PsiFile>(physicalFile) {
-    override fun getPresentableText(): String = element?.name.orEmpty()
+) : VbStructureElement<PsiFile>(physicalFile) {
+    override fun presentableText(): String = element?.name.orEmpty()
 
-    override fun getChildrenBase(): Collection<StructureViewTreeElement> {
+    override fun structureChildren(): Collection<StructureViewTreeElement> {
         val structureFile = structureFileProvider() ?: return emptyList()
         return structureDeclarations(structureFile).map(::VbStructureDeclarationElement)
     }
@@ -53,8 +56,8 @@ private class VbStructureRootElement(
 
 private class VbStructureDeclarationElement(
     id: VbId
-) : PsiTreeElementBase<VbId>(id) {
-    override fun getPresentableText(): String {
+) : VbStructureElement<VbId>(id) {
+    override fun presentableText(): String {
         val id = element ?: return ""
         val name = (id as? VbNamedElement)?.name.orEmpty()
         return when (val declaration = id.parent) {
@@ -65,7 +68,7 @@ private class VbStructureDeclarationElement(
         }
     }
 
-    override fun getLocationString(): String? = when (element?.parent) {
+    override fun locationString(): String? = when (element?.parent) {
         is VbClassStmt -> "Class"
         is VbFunctionStmt -> "Function"
         is VbSubStmt -> "Sub"
@@ -73,7 +76,7 @@ private class VbStructureDeclarationElement(
         else -> null
     }
 
-    override fun getIcon(open: Boolean): Icon? = when (element?.parent) {
+    override fun presentationIcon(open: Boolean): Icon? = when (element?.parent) {
         is VbClassStmt -> AllIcons.Nodes.Class
         is VbFunctionStmt -> AllIcons.Nodes.Function
         is VbSubStmt -> AllIcons.Nodes.Method
@@ -81,7 +84,7 @@ private class VbStructureDeclarationElement(
         else -> null
     }
 
-    override fun getChildrenBase(): Collection<StructureViewTreeElement> {
+    override fun structureChildren(): Collection<StructureViewTreeElement> {
         val declaration = element?.parent as? VbClassStmt ?: return emptyList()
         return structureDeclarations(declaration).map(::VbStructureDeclarationElement)
     }
@@ -92,6 +95,43 @@ private class VbStructureDeclarationElement(
         property.node.findChildByType(VbTypes.SET) != null -> "Set"
         else -> "Property"
     }
+}
+
+private abstract class VbStructureElement<T : PsiElement>(element: T) : StructureViewTreeElement {
+    private val pointer = SmartPointerManager.createPointer(element)
+
+    protected val element: T?
+        get() = pointer.element
+
+    override fun getValue(): Any? = element
+
+    override fun getPresentation(): ItemPresentation = object : ItemPresentation {
+        override fun getPresentableText(): String = presentableText()
+
+        override fun getLocationString(): String? = locationString()
+
+        override fun getIcon(unused: Boolean): Icon? = presentationIcon(unused)
+    }
+
+    override fun getChildren(): Array<TreeElement> = structureChildren().toTypedArray()
+
+    override fun navigate(requestFocus: Boolean) {
+        navigatable()?.navigate(requestFocus)
+    }
+
+    override fun canNavigate(): Boolean = navigatable()?.canNavigate() == true
+
+    override fun canNavigateToSource(): Boolean = navigatable()?.canNavigateToSource() == true
+
+    protected abstract fun presentableText(): String
+
+    protected open fun locationString(): String? = null
+
+    protected open fun presentationIcon(open: Boolean): Icon? = null
+
+    protected abstract fun structureChildren(): Collection<StructureViewTreeElement>
+
+    private fun navigatable(): Navigatable? = element?.navigationElement as? Navigatable
 }
 
 private fun structureDeclarations(scope: PsiElement): List<VbId> {

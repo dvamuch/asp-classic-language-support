@@ -3,10 +3,10 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 import com.intellij.injected.editor.DocumentWindow
 import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.usageView.UsageInfo
+import dvamuch.aspclassiclanguagesupport2.lang.AspReadAction
 
 /** Convert short-lived injected PSI usages to stable ranges in the containing ASP file. */
 internal object VbHostUsageInfo {
@@ -14,7 +14,7 @@ internal object VbHostUsageInfo {
         return if (ApplicationManager.getApplication().isReadAccessAllowed) {
             fromInReadAction(usage)
         } else {
-            ReadAction.computeBlocking<UsageInfo, RuntimeException> { fromInReadAction(usage) }
+            AspReadAction.compute { fromInReadAction(usage) }
         }
     }
 

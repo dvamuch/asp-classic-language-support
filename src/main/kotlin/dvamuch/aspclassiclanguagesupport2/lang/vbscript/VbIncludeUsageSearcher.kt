@@ -1,7 +1,6 @@
 package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 
 import com.intellij.lang.injection.InjectedLanguageManager
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -15,6 +14,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
 import dvamuch.aspclassiclanguagesupport2.lang.AspFileType
+import dvamuch.aspclassiclanguagesupport2.lang.AspReadAction
 import dvamuch.aspclassiclanguagesupport2.lang.include.AspIncludeGraph
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbAspPsiUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
@@ -37,13 +37,13 @@ internal object VbIncludeUsageSearcher {
         processor: Processor<in UsageInfo>
     ): Boolean {
         if (userScope !is GlobalSearchScope) return true
-        val context = ReadAction.computeBlocking<SearchContext?, RuntimeException> {
+        val context = AspReadAction.compute {
             prepareInReadAction(element, userScope)
         } ?: return true
 
         for (consumerFile in context.candidateFiles) {
             ProgressManager.checkCanceled()
-            val completed = ReadAction.computeBlocking<Boolean, RuntimeException> {
+            val completed = AspReadAction.compute {
                 processFileInReadAction(consumerFile, context, processor)
             }
             if (!completed) return false

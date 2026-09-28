@@ -13,13 +13,27 @@
           <li>Completion for ASP built-ins, user classes and common ADO/Scripting/MSXML/WinHTTP objects.</li>
         </ul>
         <p>Supported source types: <code>.asp</code>, <code>.inc</code> and <code>.vbs</code>.</p>
+        <p>
+          Feedback is welcome:
+          <a href="https://plugins.jetbrains.com/plugin/34424-asp-classic-language-support/reviews">leave an honest review</a>
+          or <a href="https://github.com/Dvamuch/asp-classic-language-support/issues/new/choose">report an issue</a>.
+        </p>
+        <p>
+          Tested with PhpStorm 2025.2.4 and 2026.2.2, IntelliJ IDEA Ultimate
+          2026.2.2, WebStorm 2026.2.2 and PyCharm 2026.2.3.
+        </p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.xml</depends>
-    <depends>intellij.structureView.plugin</depends>
+
+    <projectListeners>
+        <listener class="dvamuch.aspclassiclanguagesupport2.feedback.AspFeedbackFileEditorListener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
 
     <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="ASP Classic feedback" displayType="BALLOON" isLogByDefault="true"/>
         <lang.elementManipulator forClass="com.intellij.psi.xml.XmlAttributeValue"
                                  implementationClass="dvamuch.aspclassiclanguagesupport2.lang.AspXmlAttributeValueManipulator"
                                  order="first"/>
@@ -92,4 +106,13 @@
         <postFormatProcessor implementation="dvamuch.aspclassiclanguagesupport2.lang.AspPostFormatProcessor"
                              order="last"/>
     </extensions>
+
+    <actions>
+        <action id="dvamuch.aspClassic.sendFeedback"
+                class="dvamuch.aspclassiclanguagesupport2.feedback.AspSendFeedbackAction"
+                text="ASP Classic: Send Feedback"
+                description="Report an ASP Classic Language Support bug or suggest a feature">
+            <add-to-group group-id="HelpMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>

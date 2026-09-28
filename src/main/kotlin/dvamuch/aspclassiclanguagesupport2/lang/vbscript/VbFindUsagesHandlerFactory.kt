@@ -3,12 +3,12 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 import com.intellij.find.findUsages.FindUsagesHandler
 import com.intellij.find.findUsages.FindUsagesHandlerFactory
 import com.intellij.find.findUsages.FindUsagesOptions
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.LocalSearchScope
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
+import dvamuch.aspclassiclanguagesupport2.lang.AspReadAction
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbDeclarationUtil
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.psi.VbId
 
@@ -33,7 +33,7 @@ private class VbFindUsagesHandler(element: PsiElement) : FindUsagesHandler(eleme
         val declarationId = element as? VbId ?: return false
         val userScope = options.searchScope
         val fastTrack = options.fastTrack
-        val localScope = ReadAction.computeBlocking<LocalSearchScope, RuntimeException> {
+        val localScope = AspReadAction.compute {
             LocalSearchScope(element.containingFile)
         }
         options.searchScope = localScope

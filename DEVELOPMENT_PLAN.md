@@ -83,11 +83,12 @@
   как 40 реальных дефектов исходников и 2 служебных не-ASP файла;
 - есть smoke/regression/integration-тесты для lexer, parser, injection,
   resolve, include и Find Usages;
-- версия `0.0.8` была собрана на PhpStorm 2026.1.2; текущая `1.0.0-rc3` собирается
-  после обновления рабочей машины с macOS 13 на PhpStorm 2026.2.2
-  (PS-262.10315.130), минимальная совместимая сборка — 262.10315;
-- на PhpStorm 2026.2.2 проходят все 209 обычных автоматических тестов и сборка
-  plugin ZIP; на 262 повторно проверены 21 файл `Bugs/`, 8 файлов `core`/DAL,
+- версия `0.0.8` была собрана на PhpStorm 2026.1.2; текущая `1.0.0` собирается
+  против минимального PhpStorm 2025.2.4 (PS-252.27397.112) с Java 21 bytecode,
+  а основной текущий рабочий target — PhpStorm 2026.2.2 (PS-262.10315.130);
+- на PhpStorm 2025.2.4 и 2026.2.2 проходят все 212 обычных автоматических тестов
+  и сборка plugin ZIP; на 262 повторно проверены 21 файл `Bugs/`, 8 файлов
+  `core`/DAL,
   реальные editor-сценарии `Bugs/index.asp`, `Bugs/BugAdd.asp`,
   `Bugs/BugInfo.asp`, `customers/orderinfo.asp` и все 2200 поддерживаемых файлов
   актуальной рабочей копии TTS. Полный formatter safety-аудит завершился без
@@ -165,19 +166,22 @@ ASP Classic, а не завершение всего возможного фун
   [`docs/TTS_PARSER_REVIEW_BACKLOG.md`](docs/TTS_PARSER_REVIEW_BACKLOG.md).
 - [x] Очистить plugin metadata и repository от шаблонных/debug-компонентов,
   подготовить описание, change notes, лицензию, иконки и известные ограничения.
-- [x] Пройти полный test suite на PhpStorm 2026.2.2, собрать ZIP и запустить
-  Plugin Verifier на PhpStorm 2026.2/2026.3, IntelliJ IDEA Ultimate 2026.2.2 и
-  WebStorm 2026.2.2. Verifier: compatible, 0 compatibility errors и
-  0 deprecated API usages; focused smoke-набор из 103 тестов проходит на IDEA
-  Ultimate и WebStorm. Устаревшие вызовы `ReadAction.compute` заменены в
+- [x] Пройти полный test suite на PhpStorm 2025.2.4 и 2026.2.2, собрать ZIP и
+  запустить Plugin Verifier на PhpStorm 2025.2.4/2026.2/2026.3, IntelliJ IDEA
+  Ultimate 2026.2.2, WebStorm 2026.2.2 и PyCharm 2026.2.3. Verifier: compatible,
+  0 compatibility errors и 0 deprecated API usages; focused smoke-набор из
+  103 тестов проходит на IDEA Ultimate, WebStorm и PyCharm. Устаревшие вызовы
+  `ReadAction.compute` заменены в
   `1.0.0-rc3`.
 - [x] Запустить PhpStorm 2026.2.2 с изолированным sandbox: startup log
   подтверждает загрузку `ASP Classic Language Support (1.0.0-rc1)` без ошибок
   плагина.
 - [x] Собрать `1.0.0-rc1` и заморозить новые функции до завершения RC-проверки.
-- [ ] Установить RC ZIP в чистый профиль поддерживаемой PhpStorm, проверить
-  загрузку после перезапуска и провести период реального использования перед
-  финальным `1.0.0`.
+- [x] Провести период реального использования `1.0.0-rc3` перед финальным
+  `1.0.0`. Автор ежедневно использует RC на TTS без release-blocking регрессий;
+  Marketplace подтвердил первые установки в PhpStorm, IDEA, WebStorm, PyCharm,
+  Rider и других продуктах. PyCharm 2026.2.3 дополнительно проверен вручную в
+  изолированном development sandbox.
 
 Не являются блокерами `1.0`: unused-declaration inspection, расширенный вывод
 типов и default members, project-wide stub index, дополнительные COM-каталоги,
@@ -204,9 +208,11 @@ HTML-атрибута. На актуальном formatter потеря токе
 - Изначально snapshot и rollback в `AspPostFormatProcessor` начинались после
   основной HTML/template-formatting фазы. Теперь отдельный operation guard
   снимает snapshot в pre-format и валидирует результат после всех стадий.
-- После исходного расследования тестовая и сборочная платформа обновлена с
-  PhpStorm 2026.1.2 до 2026.2.2 (262.10315.130). JVM target обновлён до 25,
-  а Gradle автоматически provision-ит нужный toolchain. Используются Kotlin
+- После исходного расследования основная рабочая платформа обновлена с PhpStorm
+  2026.1.2 до 2026.2.2 (262.10315.130). Перед стабильным релизом сборочный и
+  обычный test baseline опущен до PhpStorm 2025.2.4 (252.27397.112), а JVM
+  target — до 21: один ZIP совместим со старыми Java 21 и новыми Java 25 IDE.
+  Gradle автоматически provision-ит нужный toolchain. Используются Kotlin
   2.3.20, IntelliJ Platform Gradle Plugin 2.19.0 и GrammarKit 2023.3.0.3.
 - На 261 воспроизведён и исправлен `null`-indent при форматировании ASP внутри
   JavaScript, ложный line continuation на внутренних маркерах, накопление
@@ -700,8 +706,8 @@ Backlog стандартных, но менее приоритетных объ�
 - удалены/исключены шаблонные и debug-компоненты;
 - `plugin.xml` содержит актуальные Marketplace name/description/dependencies;
 - подготовлены change notes, Apache 2.0 license и собственные light/dark icons;
-- `since-build` соответствует проверенной платформе 262, ZIP также совместим
-  с проверенной Plugin Verifier платформой 263;
+- `since-build` соответствует проверенному PhpStorm 2025.2.4 (`252.27397`), ZIP
+  также совместим с проверенными Plugin Verifier платформами 262 и 263;
 - README описывает фактические возможности, ограничения и post-1.0 roadmap.
 
 Критерий готовности:
@@ -723,12 +729,11 @@ Backlog стандартных, но менее приоритетных объ�
 
 ## Рекомендуемый порядок ближайших задач
 
-1. Установить `1.0.0-rc3` ZIP в чистый пользовательский профиль, перезапустить
-   IDE и провести обычную работу на TTS без добавления новых функций.
-2. Исправлять только release-blocking регрессии с минимальным fixture и полным
-   повтором formatter/parser gates.
-3. При отсутствии блокеров выпустить `1.0.0` с тем же feature set.
-4. После релиза перейти к задачам из `docs/POST_1_0_ROADMAP.md`: unused
+1. [x] Собрать и повторно проверить `1.0.0` с тем же языковым feature set, что
+   у принятого `1.0.0-rc3`.
+2. Загрузить финальный ZIP в Marketplace, создать Git tag и GitHub Release.
+3. Исправлять найденные совместимость/регрессии в patch-релизах `1.0.x`.
+4. В `1.1.0` перейти к задачам из `docs/POST_1_0_ROADMAP.md`: unused
    declarations, расширенный type inference, default members, Quick
    Documentation, stub index и `global.asa`.
 5. Parser-классификацию повторять при изменениях lexer/parser; текущие 40

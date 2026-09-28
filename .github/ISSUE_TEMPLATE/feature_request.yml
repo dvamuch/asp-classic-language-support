@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an ASP Classic language or editor feature.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for sharing an idea. Concrete examples help determine the safest implementation for legacy ASP projects.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to accomplish, and what is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Suggested behavior
+      description: Describe how you would expect the IDE feature to work.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example ASP/VBScript
+      description: Optional. Remove confidential project data.
+      render: vb
+  - type: input
+    id: ide
+    attributes:
+      label: IDE and build
+      placeholder: Rider 2026.2, RD-262.x
