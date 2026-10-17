@@ -96,6 +96,37 @@ class AspFormattingModelSafetyTest : BasePlatformTestCase() {
         assertEquals("<div><%= unsavedValue %></div>", file.text)
     }
 
+    fun testPartialGuardRestoresWhitespaceChangeOutsideSelectedLines() {
+        val source = """
+            <header>outside</header>
+            <div><%=value+1%></div>
+            <footer>outside</footer>
+        """.trimIndent()
+        val file = myFixture.configureByText("partial-guard.asp", source)
+        val document = myFixture.editor.document
+        val documentManager = PsiDocumentManager.getInstance(project)
+        val selectionStart = source.indexOf("<div>")
+        val selectionEnd = selectionStart + "<div><%=value+1%></div>".length
+        val selectedRange = FormattingRangeSupport.expandToWholeLines(
+            source,
+            TextRange(selectionStart, selectionEnd)
+        )
+
+        WriteCommandAction.runWriteCommandAction(project) {
+            AspFormatOperationGuard.capture(file, selectedRange)
+            document.insertString(0, " ")
+            documentManager.commitDocument(document)
+            AspPostFormatProcessor().processText(
+                file,
+                TextRange(selectedRange.startOffset + 1, selectedRange.endOffset + 1),
+                CodeStyle.getSettings(file)
+            )
+        }
+        documentManager.commitAllDocuments()
+
+        assertEquals("A partial reformat must not change whitespace outside its lines", source, file.text)
+    }
+
     fun testPartialReformatAroundScriptletBoundaries() {
         val source = """
             <div>

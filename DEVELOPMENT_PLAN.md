@@ -1,423 +1,406 @@
-# План развития ASP Classic Language Support
+# ASP Classic Language Support development plan
 
-Документ фиксирует текущее состояние проекта и порядок реализации функциональности. Его цель — служить рабочим ориентиром при развитии плагина.
+This document records the current implementation status and the intended order
+of future work. It is the working technical roadmap for contributors.
 
-## Текущее состояние
+## Current status
 
-Проект находится в рабочем MVP-состоянии и уже пригоден для повседневной
-навигации по реальному ASP Classic-проекту:
+The plugin is stable enough for day-to-day navigation and editing in real ASP
+Classic projects. Stable version `1.0.0` is published on JetBrains Marketplace
+and GitHub.
 
-- распознаются `.asp`, `.inc` и `.vbs` файлы;
-- ASP-файлы разбиваются на HTML-части и VBScript-блоки `<% ... %>` / `<%= ... %>`;
-- работает базовая подсветка синтаксиса ASP/VBScript;
-- весь ASP-файл разбирается одним нативным VBScript PSI, а HTML остаётся
-  отдельным template-data PSI;
-- есть парсер VBScript и набор PSI-элементов;
-- работает scope-aware `Go To Definition` внутри файла и по цепочкам include;
-- работает `Find Usages` для локальных и подключаемых символов;
-- include-директивы индексируются, поддерживают навигацию и обратный поиск;
-- отсутствующий относительный или virtual include подсвечивается отдельной
-  inspection непосредственно на диапазоне пути;
-- при `Option Explicit` необъявленные корневые идентификаторы подсвечиваются
-  отдельной inspection; built-ins, объявления из include-графа, пользовательские
-  классы и динамические члены объектов не создают ложных предупреждений;
-- ASP-вставки внутри HTML-атрибутов представлены в HTML PSI единым outer
-  range; общий `XmlAttributeValue` manipulator изменяет только безопасный
-  физический диапазон. Поэтому платформенные file/URL quick-fix (включая
-  исправление регистра файла и `http://` → `https://`) не могут удалить
-  следующую ASP-вставку, а правка, пересекающая `<% ... %>`, отклоняется;
-- работает completion для VBScript/ASP built-ins, текущего scope,
-  транзитивно подключённых include-файлов и популярных документированных
-  COM-объектов;
-- для экземпляров пользовательских классов из `New` работают переход к
-  public-членам и member completion, включая классы из include-графа, `Me`,
-  `(New ClassName).Member`, вывод прямого `New`-return из функции/свойства и
-  qualified/nested `With`; completion внутри `With` также понимает built-in ASP
-  и известные COM-объекты;
-- работает стандартное построчное комментирование VBScript через `'` в `.vbs`
-  и внутри ASP scriptlet-блоков;
-- работает semantic folding основных VBScript-блоков в `.vbs` и `.asp`, в том
-  числе управляющих блоков, проходящих через HTML между scriptlet-блоками;
-- Structure View показывает функции, процедуры, классы и свойства в `.vbs`,
-  `.asp` и `.inc`, включая единое дерево для нескольких scriptlet-блоков;
-- подсвечиваются парные ключевые слова VBScript, включая конструкции,
-  проходящие через HTML между ASP scriptlet-блоками;
-- минимальный formatter для `.vbs` выравнивает основные блочные конструкции и
-  безопасно нормализует однозначные пробелы; lexer fallback расставляет пробелы
-  вокруг операторов даже при parser errors в соседних ASP-фрагментах;
-- `Reformat Code` для `.asp` / `.inc` использует штатный HTML formatter для
-  template-data и наш VBScript formatter для содержимого scriptlet-блоков;
-- форматирование сохраняет общий VBScript-контекст между несколькими
-  scriptlet-блоками, включая управляющие конструкции, проходящие через HTML;
-- VBScript line continuation использует отдельный `CONTINUATION_INDENT_SIZE`,
-  а закрывающая скобка возвращается на уровень исходного выражения;
-- ASP-выражение, начинающее новую строку внутри многострочного HTML-атрибута,
-  выравнивается относительно строки атрибута с HTML continuation indent;
-- добавлен опциональный corpus safety-тест форматирования всех `.asp`, `.inc`
-  и `.vbs` файлов TTS без изменения исходного проекта: он сравнивает
-  непробельный текст, поток VBScript-токенов и число parser errors; длительный
-  аудит запускается независимыми батчами с немедленным выводом текущего файла
-  и сохранением промежуточного отчёта;
-- ASP post-format pass переведён на диапазоны из неизменяемого lexical snapshot:
-  перед каждой заменой проверяются исходный диапазон и поток VBScript-токенов,
-  а весь проход транзакционно откатывается при изменении непробельного
-  содержимого;
-- добавлена сквозная защита `Reformat Code`: pre-format сохраняет исходный
-  документ, а после HTML/template и VBScript стадий проверяются непробельное
-  содержимое, поток ASP/VBScript-токенов и число parser errors. При нарушении
-  документ целиком восстанавливается в той же write-команде, включая Undo;
-- multi-host injection полностью удалён: ASP lexer переключается между HTML и
-  VBScript, а parser сохраняет `If`, `Function`, `Class` и другие конструкции
-  цельными даже при переходе через HTML;
-- resolve, completion, include navigation, Find Usages, Structure View, folding,
-  keyword matching и formatter работают с нативными host offsets без
-  синтетического analysis PSI и двусторонней карты диапазонов;
-- performance-регрессия проверяет полный daemon highlighting: актуальный
-  `customers/orderinfo.asp` с 1317 scriptlet-блоками строит PSI без ошибок,
-  содержит 224 `If` через HTML, парсится за десятки миллисекунд, а полный
-  highlighting pass завершается примерно за 3 секунды;
-- resolve и Find Usages используют кэшируемые таблицы символов и быстрый
-  предварительный поиск кандидатов;
-- актуальный parser-аудит обрабатывает 2200 файлов TTS без зависаний и падений;
-  2158 файлов разбираются без diagnostics, а оставшиеся 42 классифицированы
-  как 40 реальных дефектов исходников и 2 служебных не-ASP файла;
-- есть smoke/regression/integration-тесты для lexer, parser, injection,
-  resolve, include и Find Usages;
-- версия `0.0.8` была собрана на PhpStorm 2026.1.2; текущая `1.0.0` собирается
-  против минимального PhpStorm 2025.2.4 (PS-252.27397.112) с Java 21 bytecode,
-  а основной текущий рабочий target — PhpStorm 2026.2.2 (PS-262.10315.130);
-- на PhpStorm 2025.2.4 и 2026.2.2 проходят все 212 обычных автоматических тестов
-  и сборка plugin ZIP; на 262 повторно проверены 21 файл `Bugs/`, 8 файлов
-  `core`/DAL,
-  реальные editor-сценарии `Bugs/index.asp`, `Bugs/BugAdd.asp`,
-  `Bugs/BugInfo.asp`, `customers/orderinfo.asp` и все 2200 поддерживаемых файлов
-  актуальной рабочей копии TTS. Полный formatter safety-аудит завершился без
-  изменений кода/токенов и без новых parser errors; после исправления
-  идемпотентности и после текущих spacing/continuation/attribute изменений
-  аудит полностью повторён на TTS HEAD `75312cb`, а затем ещё раз после
-  delimiter-placement изменений v0.0.10, включая локально изменённые
-  `Bugs/BugInfo.asp`, `customers/OrderServiceItemAssign_new.asp` и
-  `customers/orderinfo.asp`. Во всех девяти батчах `Violations: 0`.
+Implemented capabilities:
 
-## Оставшиеся границы
+- `.asp`, `.inc`, and `.vbs` file recognition;
+- ASP segmentation into HTML template data and `<% ... %>` / `<%= ... %>`
+  VBScript blocks;
+- ASP and VBScript syntax highlighting;
+- one native, file-wide VBScript PSI for an ASP file while HTML remains a
+  separate template-data PSI;
+- a VBScript parser and generated PSI model;
+- scope-aware Go to Definition within a file and through include chains;
+- Find Usages for local and included symbols;
+- indexed include directives, navigation, and reverse include lookup;
+- a missing-include inspection for relative and virtual paths, highlighted on
+  the path range only;
+- a conservative undeclared-identifier inspection when `Option Explicit` is
+  present. Built-ins, include declarations, user classes, and dynamic object
+  members do not create false warnings;
+- safe HTML PSI handling of ASP fragments embedded in attribute values. The
+  shared `XmlAttributeValue` manipulator changes only the safe physical range,
+  so platform file/URL quick fixes—including filename-case correction and
+  `http://` → `https://`—cannot delete a following ASP fragment. Changes that
+  intersect `<% ... %>` are rejected;
+- completion for VBScript/ASP built-ins, visible scope, transitive includes,
+  and common documented COM objects;
+- navigation and member completion for user-class instances created with
+  `New`, including classes from the include graph, `Me`,
+  `(New ClassName).Member`, direct `New` returns from functions/properties, and
+  qualified or nested `With` expressions. Completion inside `With` also
+  understands ASP built-ins and known COM objects;
+- standard VBScript line commenting with `'` in `.vbs` and inside ASP
+  scriptlets;
+- semantic folding of the main VBScript blocks in `.vbs` and `.asp`, including
+  control structures that cross HTML between scriptlets;
+- Structure View for functions, procedures, classes, and properties in `.vbs`,
+  `.asp`, and `.inc`, with a single tree across multiple scriptlets;
+- matching-highlight support for paired VBScript keywords, including pairs
+  split by HTML between ASP blocks;
+- a `.vbs` formatter for the main block structures and unambiguous spacing. A
+  lexer fallback inserts operator spacing even when neighboring ASP fragments
+  contain parser errors;
+- mixed ASP/HTML Reformat Code support: the platform HTML formatter handles
+  template data while the plugin formats VBScript scriptlet contents;
+- shared VBScript control-flow context across several ASP scriptlets;
+- configurable continuation indentation via `CONTINUATION_INDENT_SIZE`, with a
+  closing parenthesis returned to the originating expression level;
+- alignment of an ASP expression starting on a new line inside a multiline
+  HTML attribute relative to the attribute line plus HTML continuation indent;
+- an optional read-only corpus formatter safety audit for every TTS `.asp`,
+  `.inc`, and `.vbs` file. It compares non-whitespace text, the VBScript token
+  stream, and parser-error counts. Long runs execute as independent batches,
+  immediately print the active file, and persist intermediate reports;
+- immutable lexical snapshots for ASP post-format replacements. Every edit
+  validates the original range and VBScript token stream, and the complete
+  pass rolls back transactionally if non-whitespace content changes;
+- a whole-operation Reformat Code guard. Pre-format captures the original
+  document; after the HTML/template and VBScript stages, the guard validates
+  non-whitespace content, the ASP/VBScript token stream, and parser-error count.
+  Any violation restores the entire document in the same write command and
+  preserves correct Undo behavior;
+- no multi-host injection for ASP. The ASP lexer switches between HTML and
+  VBScript, and the parser keeps `If`, `Function`, `Class`, and other constructs
+  intact even when they cross HTML;
+- resolve, completion, include navigation, Find Usages, Structure View,
+  folding, keyword matching, and formatting based on native host offsets,
+  without synthetic analysis PSI or a bidirectional offset map;
+- a full-daemon-highlighting performance regression. The current
+  `customers/orderinfo.asp`, with 1,317 scriptlets and 224 `If` blocks crossing
+  HTML, builds an error-free PSI in tens of milliseconds and completes full
+  highlighting in roughly three seconds;
+- cached symbol tables and fast candidate prefiltering for resolve and Find
+  Usages;
+- a current parser audit of 2,200 TTS files with no hangs or crashes. Of those,
+  2,158 have no diagnostics; the remaining 42 are classified as 40 real source
+  defects and two non-ASP service files;
+- smoke, regression, and integration tests for the lexer, parser, resolve,
+  include support, Find Usages, and formatter.
 
-1. Completion популярных документированных COM-объектов и членов
-   пользовательских классов реализован, включая прямые возвращаемые
-   user-class objects. Пока нет вывода типа через локальные промежуточные
-   переменные/произвольные ветви и полного контекстного ранжирования.
-2. Formatter для `.vbs`, `.asp` и `.inc` достиг стабильного MVP: полный TTS-
-   аудит, повторный проход и реальный первый проход на `customers/orderinfo.asp`
-   подтверждены. Cancellation, устаревшие snapshots, изменение документа,
-   partial format, разные EOL и незавершённые scriptlet-блоки покрыты тестами.
-   Дальнейшие изменения форматирования делаются только под воспроизводимые
-   ошибки.
-3. Resolve ещё не использует stub index для произвольных проектных символов и
-   требует дальнейших тестов сложного shadowing/class-member поведения.
-4. Inspections отсутствующего include и необъявленных идентификаторов при
-   `Option Explicit` реализованы; ещё не реализована диагностика неиспользуемых
-   объявлений.
-5. Автоматические release gates и isolated-sandbox startup пройдены. До
-   финального `1.0.0` остаются установка RC ZIP в пользовательский чистый
-   профиль и период реальной эксплуатации без release-blocking регрессий.
+Version `0.0.8` was built against PhpStorm 2026.1.2. Stable `1.0.0` is compiled
+against the minimum PhpStorm 2025.2.4 platform (PS-252.27397.112) with Java 21
+bytecode; PhpStorm 2026.2.3 (PS-262.10968.76) remains the main development
+target.
 
-## Что не делаем
+All 224 ordinary automated tests and plugin ZIP assembly pass on PhpStorm
+2025.2.4 and 2026.2.3. On 262, validation also covers 21 `Bugs/` files, eight
+`core`/DAL files, editor scenarios for `Bugs/index.asp`, `Bugs/BugAdd.asp`,
+`Bugs/BugInfo.asp`, and `customers/orderinfo.asp`, plus all 2,203 supported
+files in the current TTS checkout. The full formatter safety audit completed
+without code/token changes or new parser errors. It was repeated after the
+selection-aware formatting, idempotence, spacing, continuation, attribute, and
+delimiter-placement changes on TTS HEAD `189fed0`, including its local
+uncommitted edits. All nine batches reported `Violations: 0`.
 
-- Дебаггер VBScript/ASP Classic не входит в актуальный план работ.
-- Интеграция с Windows Script Debugger / PDM не является блокером для развития плагина.
-- Дебаггер не заявляется в пользовательском roadmap 1.x.
+## Current boundaries
 
-## Контракт выпуска 1.0
+1. Completion covers common documented COM objects and user-class members,
+   including direct user-class returns. It does not yet infer types through
+   arbitrary local intermediate variables or branches, and contextual ranking
+   is not complete.
+2. Full-file formatting for `.vbs`, `.asp`, and `.inc` is a stable MVP. The
+   complete TTS audit, second-pass idempotence, and a real first pass on
+   `customers/orderinfo.asp` are confirmed. Cancellation, stale snapshots,
+   document mutation, safe partial-range invocation, mixed EOLs, and unfinished
+   scriptlets are tested. The development branch now implements line-based
+   selection-aware formatting for `.asp`, `.inc`, and `.vbs`: it reads
+   file-wide control-flow context but only writes selected whole lines. This is
+   the focused feature of the locally prepared `1.1.0` candidate; Marketplace
+   version `1.0.0` does not include it.
+3. Resolve does not yet use a stub index for arbitrary project symbols and
+   still needs broader complex-shadowing and class-member coverage.
+4. Missing includes and undeclared identifiers under `Option Explicit` are
+   inspected; unused declarations are not.
+5. Stable `1.0.0` is published on GitHub Releases and JetBrains Marketplace.
+   Automated release gates, isolated-sandbox startup, and manual validation
+   are complete. The `1.0.x` line is reserved for regressions and compatibility
+   fixes.
 
-Версия `1.0` означает стабильный инструмент для ежедневного сопровождения
-ASP Classic, а не завершение всего возможного функционала. Объём следующих
-релизов вынесен отдельно в
+## Deliberately out of scope
+
+- A built-in VBScript/ASP Classic debugger.
+- Integration with Windows Script Debugger or PDM as a release requirement.
+- Advertising debugger support in the public 1.x roadmap.
+
+## Version 1.0 release contract
+
+Version `1.0` means a stable tool for everyday ASP Classic maintenance, not the
+completion of every possible feature. Later releases are scoped separately in
 [`docs/POST_1_0_ROADMAP.md`](docs/POST_1_0_ROADMAP.md).
 
-Обязательные критерии:
+Required criteria, all complete:
 
-- [x] Нативный file-wide ASP/VBScript PSI без per-scriptlet injection.
-- [x] Навигация, Find Usages, include-граф, completion и основные editor
-  features работают на реальном проекте.
-- [x] Formatter защищён полнооперационным snapshot/fingerprint/rollback и
-  прошёл полный TTS safety-аудит без изменения кода или токенов.
-- [x] Отсутствующие include и необъявленные имена при `Option Explicit`
-  диагностируются консервативно.
-- [x] Ускорить полный `Reformat Code` для `customers/orderinfo.asp`. Базовая
-  точка на PhpStorm 2026.2.2: 7.86 с первый проход и 6.29 с повторный проход
-  для файла 476 КБ с 1319 ASP-блоками. После устранения повторных полных
-  обходов HTML PSI и пакетной записи whitespace: 3.23 с и 1.84 с. Цель
-  текущей машины — не более 5 с и 3 с соответственно; optional TTS-тест
-  удерживает регрессионные пределы 6 с и 4 с с запасом на test harness.
-- [x] Добавить cancellation points и закрыть сценарии исключения/отмены
-  платформенной HTML-стадии и конкурентного изменения документа. Длинные
-  formatter-циклы проверяют cancellation; command-scoped snapshot не может
-  откатить более позднюю команду, а изменение кода между pre/post стадиями
-  обнаруживается fingerprint и восстанавливается целиком.
-- [x] Повторно проверить unresolved inspection на реальных файлах TTS с
-  `Option Explicit`. Проверены все 5 подходящих файлов и их include-зависимости:
-  35 срабатываний относятся к четырём действительно необъявленным именам в
-  `inc/500-102.asp`; на остальных файлах ложных срабатываний нет. Аудит
-  воспроизводится `AspTtsInspectionAuditTest`.
-- [x] Повторить parser-аудит актуальным кодом, исключить служебные/архивные
-  файлы и проверить активные ASP-файлы из обновлённого остатка. Проверено
-  2200 файлов: 0 падений, 2158 без diagnostics, 40 с подтверждёнными ошибками
-  исходников и 2 со служебными не-ASP данными. Два реальных parser gap найдены
-  и закрыты; подробности в
+- [x] Native file-wide ASP/VBScript PSI without per-scriptlet injection.
+- [x] Navigation, Find Usages, the include graph, completion, and essential
+  editor features work on a real project.
+- [x] The formatter has whole-operation snapshot/fingerprint/rollback
+  protection and passed the full TTS audit without code or token changes.
+- [x] Missing includes and undeclared names under `Option Explicit` are
+  diagnosed conservatively.
+- [x] Full Reformat Code performance on `customers/orderinfo.asp` was reduced
+  from 7.86/6.29 seconds for first/second passes on a 476 KiB file with 1,319
+  ASP blocks to 3.23/1.84 seconds by removing repeated full HTML PSI traversals
+  and batching whitespace writes. Targets on the current machine are at most
+  five and three seconds; the optional TTS regression uses six- and four-second
+  limits to allow for harness overhead.
+- [x] Cancellation points and exception/cancellation cases around the platform
+  HTML stage and concurrent document changes are covered. Long formatter loops
+  check cancellation; a command-scoped snapshot cannot roll back a later
+  command; a pre/post fingerprint detects intervening code changes and restores
+  the original document.
+- [x] The unresolved-name inspection was audited on real TTS files containing
+  `Option Explicit`. All five eligible files and their include dependencies
+  were checked. Thirty-five findings correspond to four genuinely undeclared
+  names in `inc/500-102.asp`; the other files have no false positives. The
+  audit is reproducible through `AspTtsInspectionAuditTest`.
+- [x] The current parser audit checked 2,200 files: zero crashes, 2,158 without
+  diagnostics, 40 with confirmed source errors, and two containing service
+  data rather than ASP. Two genuine parser gaps were found and fixed. See
   [`docs/TTS_PARSER_REVIEW_BACKLOG.md`](docs/TTS_PARSER_REVIEW_BACKLOG.md).
-- [x] Очистить plugin metadata и repository от шаблонных/debug-компонентов,
-  подготовить описание, change notes, лицензию, иконки и известные ограничения.
-- [x] Пройти полный test suite на PhpStorm 2025.2.4 и 2026.2.2, собрать ZIP и
-  запустить Plugin Verifier на PhpStorm 2025.2.4/2026.2/2026.3, IntelliJ IDEA
-  Ultimate 2026.2.2, WebStorm 2026.2.2 и PyCharm 2026.2.3. Verifier: compatible,
-  0 compatibility errors и 0 deprecated API usages; focused smoke-набор из
-  103 тестов проходит на IDEA Ultimate, WebStorm и PyCharm. Устаревшие вызовы
-  `ReadAction.compute` заменены в
-  `1.0.0-rc3`.
-- [x] Запустить PhpStorm 2026.2.2 с изолированным sandbox: startup log
-  подтверждает загрузку `ASP Classic Language Support (1.0.0-rc1)` без ошибок
-  плагина.
-- [x] Собрать `1.0.0-rc1` и заморозить новые функции до завершения RC-проверки.
-- [x] Провести период реального использования `1.0.0-rc3` перед финальным
-  `1.0.0`. Автор ежедневно использует RC на TTS без release-blocking регрессий;
-  Marketplace подтвердил первые установки в PhpStorm, IDEA, WebStorm, PyCharm,
-  Rider и других продуктах. PyCharm 2026.2.3 дополнительно проверен вручную в
-  изолированном development sandbox.
+- [x] Plugin metadata and the repository were cleaned of template/debug
+  components; description, change notes, license, icons, and limitations are
+  ready and published.
+- [x] The complete suite passes on PhpStorm 2025.2.4 and 2026.2.3. Plugin
+  Verifier reports compatibility, zero compatibility errors, and zero
+  deprecated API usages on PhpStorm 2025.2.4/2026.2/2026.3, IntelliJ IDEA
+  Ultimate 2026.2.2, WebStorm 2026.2.2, and PyCharm 2026.2.3. A focused
+  103-test functional suite passes on IDEA Ultimate, WebStorm, and PyCharm.
+  Deprecated `ReadAction.compute` calls were removed in `1.0.0-rc3`.
+- [x] PhpStorm 2026.2.3 starts with an isolated sandbox and loads the plugin
+  without plugin errors.
+- [x] `1.0.0-rc1` was built and feature development was frozen during release
+  candidate validation.
+- [x] `1.0.0-rc3` was used daily on TTS without release-blocking regressions
+  before stable `1.0.0`. Marketplace installations were observed across
+  PhpStorm, IDEA, WebStorm, PyCharm, Rider, and other products. PyCharm
+  2026.2.3 also received an isolated manual demo-project test.
 
-Не являются блокерами `1.0`: unused-declaration inspection, расширенный вывод
-типов и default members, project-wide stub index, дополнительные COM-каталоги,
-Quick Documentation, `global.asa` и перестройка ASP внутри сложных HTML-
-атрибутов.
+## Version 1.1 release contract
 
-## Приоритеты реализации
+Version `1.1.0` is intentionally limited to selection-aware formatting plus
+the control-flow correction required for multiline block-opening statements.
+No unrelated code-analysis feature is included in this release.
 
-### 0. Сохранность кода при форматировании — критический приоритет
+Required criteria, all complete in the local release candidate:
 
-Повторное сообщение о потере кода в v0.0.4, 2026-09-03. Тестовый контур и
-formatter перенесены на ту же версию PhpStorm. В сентябре 2026 получен точный
-пример из `Bugs/BugInfo.asp`: ASP-выражение с кавычками внутри длинного
-HTML-атрибута. На актуальном formatter потеря токенов не воспроизводится ни
-изолированно, ни через реальную команду Reformat Code на полном файле; добавлен
-постоянный regression-тест.
-Результаты диагностики и ограничения: [FORMATTER_SAFETY_INVESTIGATION.md](docs/FORMATTER_SAFETY_INVESTIGATION.md).
+- [x] Selected `.asp`, `.inc`, and `.vbs` physical lines receive normal
+  spacing, keyword case, continuation, delimiter, and indentation rules while
+  the exact prefix and suffix outside the expanded line range remain unchanged.
+- [x] Whole-file control-flow context is used without formatting preceding or
+  following lines.
+- [x] Selection tests cover a single scriptlet, multiple scriptlets,
+  HTML/VBScript boundaries, CRLF and mixed EOLs, Undo, idempotence, and
+  multiline `If ... Then` statements joined with `_`.
+- [x] A real selected SQL-construction block in `customers/orderinfo.asp`
+  formats in under five seconds and is unchanged on the second pass.
+- [x] All 224 ordinary tests pass on PhpStorm 2025.2.4 and 2026.2.3.
+- [x] All 2,203 supported files in the current TTS checkout pass the formatter
+  safety audit on PhpStorm 2026.2.3.
+- [x] Plugin Verifier reports compatibility on PhpStorm 2025.2.4 and 2026.2.3,
+  IntelliJ IDEA Ultimate 2026.2.2, WebStorm 2026.2.2, and PyCharm 2026.2.3.
+- [x] The 108-test functional smoke suite passes on IDEA Ultimate, WebStorm,
+  and PyCharm.
+- [x] The plugin ZIP, project configuration, and plugin structure checks pass.
 
-Подтверждено:
+The candidate is prepared but has not been committed, tagged, published as a
+GitHub Release, or uploaded to JetBrains Marketplace.
 
-- Старый corpus safety-тест после миграции на native PSI искал `ASP_OUTER`
-  в lexer и injected PSI. Для ASP поток VBScript-токенов и число ошибок
-  получались пустыми/нулевыми. Тест адаптирован, добавлен самотест проверки.
-- Изначально snapshot и rollback в `AspPostFormatProcessor` начинались после
-  основной HTML/template-formatting фазы. Теперь отдельный operation guard
-  снимает snapshot в pre-format и валидирует результат после всех стадий.
-- После исходного расследования основная рабочая платформа обновлена с PhpStorm
-  2026.1.2 до 2026.2.2 (262.10315.130). Перед стабильным релизом сборочный и
-  обычный test baseline опущен до PhpStorm 2025.2.4 (252.27397.112), а JVM
-  target — до 21: один ZIP совместим со старыми Java 21 и новыми Java 25 IDE.
-  Gradle автоматически provision-ит нужный toolchain. Используются Kotlin
-  2.3.20, IntelliJ Platform Gradle Plugin 2.19.0 и GrammarKit 2023.3.0.3.
-- На 261 воспроизведён и исправлен `null`-indent при форматировании ASP внутри
-  JavaScript, ложный line continuation на внутренних маркерах, накопление
-  пробелов перед `%>` и разворачивание inline ASP внутри HTML-атрибутов.
-- На полном `Bugs/BugInfo.asp` воспроизведена неидемпотентность: второй проход
-  менял отступы пустых строк внутри вложенных ASP-веток. Убран feedback текущего
-  отступа на пустых строках; два запуска Reformat Code теперь дают идентичный
-  результат, а тест также подтверждает совпадение команды IDE и прямого вызова
-  `CodeStyleManager.reformat` при одинаковых настройках.
-- Для составных HTML-атрибутов воспроизведена общая потеря ASP-хвоста в
-  платформенном `XmlAttributeValueManipulator`: он пересоздавал значение как
-  обычный HTML и считал кавычки VBScript HTML-разделителями. ASP scriptlet теперь
-  передаётся HTML parser одним outer range, а ASP-aware manipulator сохраняет
-  нетронутые участки физического документа. Regression-тест запускает настоящий
-  action `Change prefix to https://` и проверяет неизменность ASP-выражения.
-- Для `customers/orderinfo.asp` устранён пробельный дрейф второго прохода:
-  pre-format снимает только ранее добавленную семантическую прибавку отступа,
-  HTML formatter вычисляет базовый отступ, а post-format добавляет актуальную
-  глубину VBScript ровно один раз. Два последовательных Reformat Code теперь
-  дают идентичный результат на полном файле.
-- На полном `customers/orderinfo.asp` подтверждено, что глобальная настройка
-  PhpStorm `HTML_ALIGN_TEXT=true` является источником чрезмерного выравнивания
-  обычного HTML-текста: затрагиваются 76 участков, максимальный отступ достигает
-  285 пробелов. При `false` максимум снижается до 137 и исчезают восемь явно
-  уехавших строк. Для TTS рекомендовано отключить `Editor | Code Style | HTML |
-  Other | Align text`; это не настройка ASP/VBScript formatter.
-- На том же файле исправлены пробелы вокруг сравнений/вычислений, отступ
-  многострочных вызовов через `_` и ASP-expression на отдельной строке внутри
-  quoted HTML attribute. Два editor reformat подряд идентичны при обоих
-  значениях `HTML_ALIGN_TEXT`.
-- На исходном `customers/orderinfo.asp` устранено принудительное разворачивание
-  коротких inline scriptlet-ов. Парные delimiters теперь сохраняют исходный
-  inline-стиль либо совместно переходят в многострочный стиль; в последнем
-  случае `<%` и `%>` выравниваются, а следующий HTML начинается с новой строки.
-  Первый и второй editor reformat дают идентичный результат.
-- Снимок operation guard привязан к файлу, потоку и конкретной IDE-команде.
-  Снимок отменённой операции не может откатить правку из следующей команды;
-  ошибка внутри pre-format немедленно удаляет снимок. Добавлены отдельные
-  regression-тесты для обоих механизмов.
-- Установленная пользователем сборка `0.0.10` правильно отформатировала
-  `customers/orderinfo.asp` с первого прохода. Это закрывает исходную проблему
-  повторно сходящегося форматирования на реальной IDE и переводит formatter в
-  режим поддержки по воспроизводимым regression-сценариям.
-- В hardening-набор добавлены текущий несохранённый Document как rollback-
-  baseline, partial ranges через scriptlet/HTML-границы, смешанные CRLF/LF,
-  tab indentation и незавершённые scriptlet-ы. Внутренние fragment markers
-  теперь выбирают namespace, которого нет в пользовательских строках и
-  комментариях, поэтому похожий пользовательский текст не может нарушить
-  извлечение отформатированных фрагментов.
+Unused-declaration inspection, deeper type inference and default members, a
+project-wide stub index, additional COM catalogs, Quick Documentation,
+`global.asa`, and restructuring ASP inside complex HTML attributes are not
+included in 1.1.0 and remain planned for later releases.
 
-Политика дальнейшей работы:
+## Implementation priorities
 
-1. Whole-operation guard и hardening-пакет закрыты: проверяются отмена и
-   устаревшие snapshots, несохранённый Document, изменение текста между
-   pre/post стадиями, partial ranges, CRLF/LF, tabs, незавершённые scriptlet-ы,
-   строки и комментарии рядом с fragment markers.
-2. Не расширять formatter до появления воспроизводимого пользовательского
-   дефекта; для каждого исправления сначала добавлять минимальный regression-
-   fixture и сохранять все существующие safety gates.
-3. При новом пользовательском дефекте фиксировать минимальный fixture
-   и первый неверный edit (диапазон, этап, стек вызовов), затем исправлять только
-   подтверждённый источник. Сохранять встроенное HTML-форматирование и native
-   file-wide PSI.
-4. Продолжать проверять непробельный текст, точные строковые литералы, ASP
-   delimiters, значимые EOL/continuations и границы комментариев, отсутствие
-   новых parser errors; отдельно whitespace-sensitive HTML/JS/CSS. Повторное
-   форматирование идемпотентно, Undo возвращает весь исходник, проверка не
-   считается успешной только потому, что formatter всё откатил или не работал.
-5. Перед выпуском прогонять важные файлы (`Bugs/index.asp`, `Bugs/BugAdd.asp`, `Bugs/BugInfo.asp`,
-   `customers/orderinfo.asp`, DAL/includes), затем TTS батчами с прогрессом и
-   артефактами до/после на основной поддерживаемой платформе 262. Первый полный
-   прогон всех 2200 файлов на PhpStorm 2026.2.2 завершён без нарушений.
+### 0. Formatter code safety — critical and continuously enforced
 
-### 1. Производительность на больших файлах — архитектурная миграция выполнена
+A second code-loss report was investigated against v0.0.4 on September 3,
+2026. The formatter and test environment were moved to the user's PhpStorm
+version. A precise case was later obtained from `Bugs/BugInfo.asp`: an ASP
+expression containing quotes inside a long HTML attribute. Token loss is not
+reproducible with the current formatter, either in isolation or through a real
+full-file Reformat Code action, and a permanent regression test covers the
+case. Full findings are in
+[`docs/FORMATTER_SAFETY_INVESTIGATION.md`](docs/FORMATTER_SAFETY_INVESTIGATION.md).
 
-Это самый важный технический риск: плагин должен оставаться отзывчивым на реальных legacy-проектах с большими `.asp` и `.inc` файлами.
+Confirmed work:
 
-Выполнен полный parser-аудит актуальной рабочей копии TTS: 2200 файлов
-обрабатываются без зависаний и падений; 2158 не имеют diagnostics, а 42 случая
-полностью классифицированы. Прежние патологически медленные файлы разбираются
-без зависания.
-Resolve и Find Usages больше не выполняют безусловный полный поиск по проекту.
+- The former corpus safety test looked for `ASP_OUTER` in the lexer and for
+  injected PSI after the migration to native PSI, leaving ASP token and
+  parser-error checks empty. The oracle was corrected and self-tested.
+- The original snapshot and rollback began only after the HTML/template stage.
+  A separate operation guard now snapshots in pre-format and validates after
+  all stages.
+- The development platform moved from PhpStorm 2026.1.2 through 2026.2.2 to
+  2026.2.3 (262.10968.76). For stable release, the build/test baseline was lowered to
+  PhpStorm 2025.2.4 (252.27397.112) and JVM target 21 so one ZIP loads in both
+  older Java 21 and newer Java 25 IDEs. Gradle provisions the required
+  toolchain. The project uses Kotlin 2.3.20, IntelliJ Platform Gradle Plugin
+  2.19.0, and GrammarKit 2023.3.0.3.
+- On 261, fixes covered a `null` indent for ASP inside JavaScript, false line
+  continuation on internal markers, accumulating spaces before `%>`, and
+  unwanted expansion of inline ASP inside HTML attributes.
+- Full-file `Bugs/BugInfo.asp` exposed non-idempotent blank-line indentation in
+  nested ASP branches. Feedback from current blank-line indentation was
+  removed. Two Reformat Code actions now match, and tests also compare the IDE
+  action with direct `CodeStyleManager.reformat` under identical settings.
+- The platform `XmlAttributeValueManipulator` could delete an ASP suffix from
+  compound attributes by rebuilding the value as plain HTML and interpreting
+  VBScript quotes as HTML delimiters. ASP scriptlets are now exposed as one
+  outer range, and an ASP-aware manipulator preserves untouched physical
+  document regions. A regression invokes the real **Change prefix to
+  https://** action and verifies that the ASP expression is unchanged.
+- Second-pass whitespace drift in `customers/orderinfo.asp` was fixed.
+  Pre-format removes only the semantic indentation added previously, the HTML
+  formatter calculates base indentation, and post-format adds current
+  VBScript depth once.
+- On the same file, `HTML_ALIGN_TEXT=true` was confirmed as the source of
+  extreme ordinary HTML alignment: 76 regions changed and indentation reached
+  285 spaces. With `false`, the maximum drops to 137 and eight visibly shifted
+  lines disappear. TTS should disable `Editor | Code Style | HTML | Other |
+  Align text`; this is not an ASP/VBScript formatter setting.
+- Spacing around comparisons and arithmetic, `_` multiline-call indentation,
+  and an ASP expression on a separate line inside a quoted attribute were
+  corrected. Two editor passes match with either `HTML_ALIGN_TEXT` value.
+- Short inline scriptlets in the original `customers/orderinfo.asp` no longer
+  expand unconditionally. Paired delimiters preserve inline layout or move to
+  aligned multiline lines together; following HTML starts on a new line.
+- Operation-guard snapshots are bound to a file, thread, and IDE command. A
+  cancelled operation cannot roll back a subsequent command, and a pre-format
+  exception discards its snapshot immediately.
+- User-installed build `0.0.10` formatted `customers/orderinfo.asp` correctly
+  in one pass, closing the original convergence problem in a real IDE.
+- Hardening covers the current unsaved Document as rollback baseline, partial
+  ranges crossing scriptlet/HTML boundaries, mixed CRLF/LF, tab indentation,
+  and unfinished scriptlets. Internal fragment markers choose a namespace not
+  present in user strings or comments.
 
-Дальнейший план:
+Ongoing formatter policy:
 
-- Замерить проблемные сценарии:
-  - открытие большого ASP-файла;
-  - первичная lexing/parsing/template-data обработка;
-  - редактирование внутри VBScript-блока;
-  - подсветка и annotator pass;
-  - resolve/navigation на большом файле.
-- Добавить или расширить performance/smoke-тесты на больших файлах:
-  - использовать реальные данные из `src/test/testData/asp/real-world` и `external-project`;
-  - зафиксировать допустимые лимиты времени для базовых операций;
-  - отдельно проверять файлы с большим количеством `<% ... %>` блоков.
-- Проверить `AspLexer`:
-  - минимизировать лишние аллокации строк и диапазонов;
-  - убедиться, что переходы между HTML и VBScript-блоками линейные;
-  - проверить поведение на незакрытых scriptlet-блоках.
-- Контролировать единый template lexer/parser:
-  - сохранять линейное время обработки по числу `<% ... %>`;
-  - проверять incremental reparse после редактирования в начале и конце файла;
-  - не возвращать language injection для ASP scriptlet-блоков.
-- Проверить подсветку и debug-компоненты:
-  - отключить или удалить debug annotator для обычного режима;
-  - убедиться, что annotator не обходит весь файл на каждый pass;
-  - оставить диагностические инструменты только за internal-флагом или test-only использованием.
-- Контролировать производительность resolve/completion:
-  - не выполнять проектный поиск при каждом вызове completion;
-  - повторно использовать кэшируемую таблицу символов и include-граф;
-  - не запускать дорогой resolve из подсветки/аннотаций без необходимости.
+1. Keep the whole-operation guard and existing hardening cases: cancellation,
+   stale snapshots, unsaved documents, pre/post mutations, partial ranges,
+   mixed EOLs, tabs, unfinished scriptlets, and strings/comments near fragment
+   markers.
+2. Expand formatting behavior only for a reproducible user case. Add the smallest
+   regression fixture first and preserve every existing safety gate.
+3. For a new defect, record the smallest fixture and the first incorrect edit
+   (range, stage, and call stack), then correct only the confirmed source while
+   retaining built-in HTML formatting and native file-wide PSI.
+4. Continue checking non-whitespace text, exact string literals, ASP
+   delimiters, significant EOL/continuations, comment boundaries, and absence
+   of new parser errors. Test whitespace-sensitive HTML/JavaScript/CSS
+   separately. Reformatting must be idempotent, Undo must restore the original,
+   and a test does not pass merely because the formatter rolled back or did
+   nothing.
+5. Before a release, run important files (`Bugs/index.asp`, `Bugs/BugAdd.asp`,
+   `Bugs/BugInfo.asp`, `customers/orderinfo.asp`, DAL/includes), followed by
+   batched TTS audits with progress and before/after artifacts on the primary
+   262 platform.
 
-Критерий готовности:
+### 1. Large-file performance — architectural migration complete
 
-- большие ASP/INC-файлы открываются и редактируются без заметных зависаний IDE;
-- performance-тесты фиксируют регрессии;
-- debug-компоненты не влияют на обычную работу пользователя.
+The plugin must remain responsive on large real-world `.asp` and `.inc` files.
+The current TTS parser audit processes 2,200 files without hangs or crashes;
+2,158 are diagnostic-free and all 42 remaining cases are classified. Formerly
+pathological files parse without hanging. Resolve and Find Usages no longer run
+an unconditional project-wide search.
 
-### 2. Форматирование VBScript и ASP scriptlet-блоков — MVP выполнен
+Ongoing checks:
 
-Форматирование остаётся важной ежедневной функцией при сопровождении
-legacy-кода, но требует отдельной осторожной работы с HTML и scriptlet-границами.
+- measure opening, initial lexing/parsing/template-data processing, edits inside
+  VBScript, highlighting/annotator passes, and navigation on large files;
+- keep performance and smoke fixtures under `src/test/testData/asp/real-world`
+  and external-project tests, with explicit time limits and cases containing
+  many scriptlets;
+- keep `AspLexer` transitions linear and allocation-conscious, including
+  unclosed scriptlets;
+- preserve linear template lexer/parser behavior by scriptlet count and test
+  incremental reparse near the start and end of a file;
+- do not reintroduce language injection for ASP scriptlets;
+- keep debug annotators out of normal operation and prevent full-file work on
+  every pass;
+- reuse cached symbol tables and include graphs and avoid project searches on
+  each completion invocation.
 
-Реализовано для `.vbs`:
+Acceptance criteria:
 
-- зарегистрирован `FormattingModelBuilder` и PSI-aware дерево `Block`;
-- реализованы базовые отступы:
-  - `If ... Then` / `ElseIf` / `Else` / `End If`;
-  - `Select Case` / `Case` / `End Select`;
-  - `For` / `Next`;
-  - `For Each` / `Next`;
-  - `Do` / `Loop`;
-  - `While` / `Wend`;
-  - `Sub` / `End Sub`;
-  - `Function` / `End Function`;
-  - `Class` / `End Class`;
-  - `With` / `End With`.
-- реализованы spacing rules:
-  - пробелы вокруг бинарных операторов;
-  - пробел после запятой в аргументах;
-  - отсутствие лишних пробелов перед `)` и после `(`;
-  - аккуратное форматирование присваиваний `=`;
-  - сохранение строковых литералов и комментариев без повреждений.
-- line continuation с `_` защищён от повреждения;
-- добавлены тесты вложенных блоков, всех поддержанных видов блоков,
-  комментариев, строк, неполного кода и line continuation.
+- large ASP/INC files open and edit without visible IDE hangs;
+- performance tests catch regressions;
+- debug components do not affect ordinary use.
 
-Реализовано для `.asp` / `.inc`:
+### 2. VBScript and ASP scriptlet formatting — full-file MVP complete
 
-- ASP зарегистрирован как template formatter поверх штатной XML/HTML-модели
-  PhpStorm;
-- HTML-теги, атрибуты и текст форматируются стандартными правилами HTML;
-- outer/scriptlet-элементы сохраняются как отдельные узлы и не передаются HTML
-  formatter-у для изменения содержимого;
-- содержимое всех `<% ... %>` одного файла форматируется в общем VBScript-
-  контексте и безопасно переносится обратно по границам scriptlet-блоков;
-- `<%= expression %>` форматируется как выражение и сохраняет delimiters;
-- базовый отступ VBScript складывается из позиции ASP-блока в HTML-дереве и
-  семантической вложенности VBScript;
-- поддержан контекст управляющих конструкций через HTML между несколькими
-  scriptlet-блоками;
-- compact control-flow scriptlets (`<% If ... Then %>`, `<% Else %>`,
-  `<% End If %>`) сохраняются inline, а расположенный между ними HTML получает
-  дополнительный VBScript-уровень отступа;
-- если один delimiter отделён от VBScript переносом строки, второй также
-  выносится на отдельную строку и выравнивается с парным delimiter-ом;
-- заключительный lexical control-flow pass стабилизирует отступы даже после
-  parser error и исправляет смешанные legacy-отступы в 2/4 пробела;
-- многострочные scriptlet-блоки рядом с HTML-тегами выносятся на отдельные
-  строки, после чего локально получают рассчитанный HTML-отступ без
-  рекурсивного повторного форматирования всего файла;
-- добавлены интеграционные тесты `.asp`, `.inc`, HTML-атрибутов, нескольких
-  scriptlet-блоков и идемпотентности повторного форматирования.
-- добавлены регрессии большого первого scriptlet-блока с сотнями последующих
-  inline-hosts и реального editor action; чистый `Bugs/index.asp` проверяется
-  как при видимом, так и при находящемся вне viewport проблемном участке.
-- в `Editor → Code Style → VBScript` добавлена общая для `.vbs`, `.asp` и
-  `.inc` настройка регистра ключевых слов: сохранять исходный вид, `lower case`
-  или canonical `Title Case` (`If`, `ElseIf`, `End If`, `Option Explicit`);
-  значением по умолчанию является `Title Case`;
-  тот же режим применяется к keyword completion, не затрагивая строки,
-  комментарии, HTML и имена членов после точки.
-- там же добавлены включённые по умолчанию настройки пробелов внутри ASP
-  delimiters и согласованного inline/multiline размещения парных `<%` / `%>`;
-  при отключённом согласовании исходное смешанное размещение не исправляется
-  плагином и остаётся на усмотрение platform formatter.
+Formatting is a high-value daily feature for legacy maintenance, but mixed
+HTML/scriptlet boundaries require conservative handling.
 
-Hardening-пакет 1.0 закрыт следующими regression-группами:
+Implemented for `.vbs`:
 
-- Regression-набор ASP/INC покрывает:
-  - неполные и синтаксически ошибочные scriptlet-блоки;
-  - комментарии и строки рядом с fragment-маркерами;
-  - смешанные CRLF/LF и tab indentation;
-  - частичное форматирование выделенного диапазона.
-- Стиль `control-flow scriptlets around HTML` проверяет, что:
-  - управляющая VBScript-конструкция может открывать HTML-фрагмент через отдельный `%>` на уровне вложенности VBScript-блока;
-  - HTML внутри ветки форматируется обычным HTML formatter и получает свой HTML-indent;
-  - продолжение VBScript (`Else`, `Next`, `End If`, `Loop` и т.п.) возвращается в отдельный `<% ... %>` блок;
-  - VBScript-код внутри каждого multiline scriptlet-а начинается на том же уровне отступа, что и открывающий `<%`, а вложенность создаётся только VBScript-конструкциями;
-  - formatter сохраняет исходный inline или multiline вид согласно явной
-    настройке и не смешивает размещение парных delimiters;
-  - базовая реализация `If` / `ElseIf` / `Else` / `End If`, `For` / `Next`,
-    `Select Case` и других блочных конструкций сохраняет общий native PSI.
+- a registered `FormattingModelBuilder` and PSI-aware `Block` tree;
+- indentation for `If`, `Select Case`, `For`, `For Each`, `Do`, `While`,
+  `Sub`, `Function`, `Class`, and `With` blocks and their closing clauses;
+- spacing around binary operators, after argument commas, around parentheses,
+  and in assignments;
+- preservation of string literals, comments, and `_` line continuations;
+- tests for nested blocks, every supported block kind, comments, strings,
+  incomplete code, and line continuation.
 
-Пример целевого форматирования `control-flow scriptlets around HTML`:
+Implemented for `.asp` and `.inc`:
+
+- a template formatter layered on the platform XML/HTML model;
+- standard HTML rules for tags, attributes, and text;
+- outer/scriptlet elements kept separate from HTML formatter mutation;
+- all `<% ... %>` contents formatted in one shared VBScript context and safely
+  written back by scriptlet boundaries;
+- `<%= expression %>` expression formatting with preserved delimiters;
+- base indentation combining the ASP block's HTML position with semantic
+  VBScript nesting;
+- control-flow context across HTML and several scriptlets;
+- preservation of compact control-flow scriptlets such as
+  `<% If ... Then %>`, `<% Else %>`, and `<% End If %>`, with the enclosed HTML
+  receiving one additional VBScript indentation level;
+- paired delimiter placement: when one delimiter is separated from VBScript by
+  a line break, the other moves to its own aligned line as well;
+- a final lexical control-flow pass that stabilizes indentation even near
+  parser errors and normalizes mixed two-/four-space legacy indentation;
+- multiline scriptlets adjacent to tags moved to separate lines and assigned
+  a local calculated HTML indent without recursively reformatting the file;
+- integration tests for `.asp`, `.inc`, HTML attributes, multiple scriptlets,
+  and second-pass idempotence;
+- regressions for a large first scriptlet followed by hundreds of inline hosts
+  and for the real editor action with the affected `Bugs/index.asp` region both
+  inside and outside the viewport;
+- shared `.vbs`/`.asp`/`.inc` keyword-case settings under
+  `Editor | Code Style | VBScript`: preserve existing, lower case, or canonical
+  Title Case (`If`, `ElseIf`, `End If`, `Option Explicit`). Title Case is the
+  default and also applies to keyword completion without changing strings,
+  comments, HTML, or member names after a dot;
+- enabled-by-default settings for spaces inside ASP delimiters and coordinated
+  inline/multiline placement of `<%` and `%>`. When placement matching is
+  disabled, the plugin leaves mixed source placement to the platform formatter.
+
+The 1.0 hardening suite covers incomplete/invalid scriptlets, strings and
+comments near fragment markers, mixed CRLF/LF, tabs, and safe partial-format
+invocations around scriptlet/HTML boundaries. The post-1.0 selection suite adds
+functional result checks for a range inside one scriptlet, a range spanning
+multiple scriptlets and HTML, exact preservation outside the selected lines,
+mixed line separators, and Undo.
+
+The `control-flow scriptlets around HTML` style verifies that VBScript can open
+an HTML region through a separate `%>` line, the HTML receives its normal HTML
+indent, continuation keywords return in a separate scriptlet, multiline
+scriptlet code begins at the opening delimiter's level, and the configured
+inline/multiline choice remains stable.
+
+Target example:
 
 ```asp
 <%
@@ -440,301 +423,248 @@ Else
 End If
 %>
 ```
-- Дополнительные WYSIWYG-fixtures добавляются после 1.0 только под реальные
-  воспроизводимые случаи.
-- Не реструктурировать ASP внутри quoted HTML attributes без отдельного
-  согласованного дизайна: этот краевой случай сознательно отложен.
 
-Критерий готовности:
+Additional WYSIWYG fixtures are added only for reproducible real cases. ASP
+inside quoted HTML attributes must not be structurally rewritten without a
+separate agreed design.
 
-- MVP-критерии для `.vbs`, `.asp` и `.inc` выполнены;
-- стабильность первого и повторного прохода подтверждена на TTS и пользователем;
-- hardening-критерии 1.0 выполнены; WYSIWYG-расширение и перестройка ASP внутри
-  сложных attributes не являются release blockers.
+First post-1.0 formatter feature — implemented for the `1.1` line:
 
-### 3. Include support — MVP выполнен
+- [x] Implement range-aware formatting for `.asp`, `.inc`, and `.vbs` so selected
+  lines receive the same spacing, case, and indentation rules as a full file
+  while lines outside the selection remain unchanged;
+- [x] Read control-flow context before the selection without formatting
+  preceding code;
+- [x] Cover a selection inside one scriptlet, across several scriptlets, and
+  across HTML/VBScript boundaries with functional, safety, idempotence, and
+  Undo tests.
 
-Поддержка include важна для реальных ASP-проектов, потому что большая часть общей логики находится в `.inc` файлах.
+Implementation boundary: the requested range expands to complete physical
+lines. The formatter analyzes all VBScript fragments to preserve file-wide
+control-flow indentation, then merges normalized content only for selected
+lines. The whole-operation guard rejects any partial operation that changes the
+exact prefix or suffix outside the expanded range. A multiline delimiter pair
+is structurally repositioned only when its complete scriptlet is selected.
+Logical VBScript statements joined with `_` are accumulated before control-flow
+tracking, so a multiline `If ... Then` opens its block before subsequent body
+and `End If` lines are indented.
 
-Реализовано:
+### 3. Include support — MVP complete
 
-- распознавание include-директив:
-  - `<!-- #include file="relative/path.inc" -->`;
-  - `<!-- #include virtual="/absolute/from/site/root.inc" -->`.
-- reference/navigation на путь include;
-- resolve относительно текущего файла и корня проекта;
-- индекс обратных зависимостей и транзитивный include-граф;
-- cross-file `Go To Definition`, `Find Usages` и completion;
-- integration-тесты относительных, virtual, вложенных и циклических include.
+Implemented:
 
-Осталось:
+- `<!-- #include file="relative/path.inc" -->` and
+  `<!-- #include virtual="/absolute/from/site/root.inc" -->` recognition;
+- references and navigation on include paths;
+- resolution relative to the current file and project root;
+- a reverse-dependency index and transitive include graph;
+- cross-file Go to Definition, Find Usages, and completion;
+- integration tests for relative, virtual, nested, and cyclic includes.
 
-- дополнительные тесты нестандартных web-root/content-root конфигураций.
+Remaining:
 
-Критерий готовности:
+- additional tests for non-standard web-root/content-root configurations.
 
-- IDE понимает пути в include-директивах;
-- работает переход к подключаемому файлу;
-- отсутствующие include диагностируются отдельной inspection.
+Acceptance criteria:
 
-### 4. Базовые IDE-функции для удобства редактирования
+- include paths are understood by the IDE;
+- navigation to an included file works;
+- a dedicated inspection reports missing includes.
 
-Реализовано:
+### 4. Essential editor features — complete for 1.0
 
-- Commenter:
-  - VBScript line comment через `'`;
-  - работает в `.vbs` и нативном VBScript PSI внутри `.asp` / `.inc`;
-  - ASP Classic не использует `<%-- --%>` как VBScript-комментарий.
-- Folding:
-  - блоки `Sub`, `Function`, `Property`, `Class`;
-  - многострочные `If`, `Select`, `For`, `For Each`, `Do`, `While`, `With`;
-  - блоки внутри одного ASP scriptlet-а;
-  - управляющие блоки, проходящие через несколько scriptlet-ов и HTML;
-  - все блоки по умолчанию раскрыты.
-- Structure View:
-  - top-level `Sub`, `Function`, `Class` и `Property`;
-  - методы и свойства вложены в соответствующий `Class`;
-  - сигнатуры показывают параметры, а `Property Get/Let/Set` различаются;
-  - единая структура для VBScript из нескольких ASP scriptlet-блоков;
-  - навигация использует физические offsets `.asp` / `.inc` файла.
-- Keyword pair matcher:
-  - `If` ↔ `End If`;
-  - `Sub` ↔ `End Sub`;
-  - `Function` ↔ `End Function`;
-  - `Property` ↔ `End Property`;
-  - `Class` ↔ `End Class`;
-  - `Select` ↔ `End Select`;
-  - `With` ↔ `End With`;
-  - `For` / `For Each` ↔ `Next`;
-  - `Do` ↔ `Loop`;
-  - `While` ↔ `Wend`;
-  - корректно выбирает ближайшую вложенную пару;
-  - работает между несколькими ASP scriptlet-блоками с HTML между ними.
+Implemented:
 
-Критерий готовности:
+- VBScript line commenting with `'` in `.vbs` and native ASP VBScript PSI;
+- semantic folding for `Sub`, `Function`, `Property`, `Class`, `If`, `Select`,
+  `For`, `For Each`, `Do`, `While`, and `With`, including structures crossing
+  HTML between scriptlets. Regions are expanded by default;
+- Structure View for top-level declarations and class members, parameterized
+  signatures, distinct `Property Get/Let/Set`, and one tree across all ASP
+  scriptlets using physical host offsets;
+- nearest-pair keyword matching for `If`/`End If`, `Sub`/`End Sub`,
+  `Function`/`End Function`, `Property`/`End Property`, `Class`/`End Class`,
+  `Select`/`End Select`, `With`/`End With`, `For`/`Next`, `Do`/`Loop`, and
+  `While`/`Wend`, including pairs crossing HTML.
 
-- редактирование `.asp`, `.inc`, `.vbs` становится удобнее даже без сложного resolve;
-- функции не создают заметной нагрузки на больших файлах.
+Acceptance criteria:
 
-### 5. Completion — базовый и документированный COM-этапы реализованы
+- `.asp`, `.inc`, and `.vbs` editing is useful even without advanced resolve;
+- features do not add visible overhead on large files.
 
-Реализовано:
+### 5. Completion — basic and documented-COM stages complete
 
-- keyword completion для VBScript;
-- completion для встроенных ASP-объектов:
-  - `Request`;
-  - `Response`;
-  - `Session`;
-  - `Application`;
-  - `Server`.
-- базовые члены встроенных объектов:
-  - `Response.Write`;
-  - `Request.QueryString`;
-  - `Request.Form`;
-  - `Server.CreateObject`;
-  - `Server.MapPath`.
-- видимые параметры, переменные, константы, процедуры, функции, свойства и
-  классы текущего scope;
-- top-level символы из транзитивного include-графа;
-- фильтрация невидимых локальных и ещё не объявленных implicit-переменных;
-- подавление подсказок внутри строк/комментариев и после точки неизвестного
-  объекта;
-- case-insensitive lookup и integration-тесты для `.vbs` и native ASP PSI.
-- best-effort type inference из:
-  - `Server.CreateObject("ProgID")`;
-  - `CreateObject("ProgID")`;
-  - ProgID в локальной строковой переменной/константе;
-  - `New RegExp`;
-  - известных возвращаемых значений, например `Set rs = cmd.Execute` и
-    `Set stream = fso.OpenTextFile(...)`;
-- кэшируемый scope-aware индекс простых присваиваний, учитывающий последнее
-  присваивание перед местом completion;
-- последовательный вывод типа для цепочек документированных членов, например
-  `cmd.Parameters.Append`, `rs.Fields.Item(0).Value` и
+Implemented:
+
+- VBScript keyword completion;
+- ASP built-ins: `Request`, `Response`, `Session`, `Application`, and `Server`;
+- common built-in members such as `Response.Write`, `Request.QueryString`,
+  `Request.Form`, `Server.CreateObject`, and `Server.MapPath`;
+- visible parameters, variables, constants, procedures, functions, properties,
+  and classes in the current scope;
+- top-level symbols from the transitive include graph;
+- filtering of invisible locals and not-yet-declared implicit variables;
+- suppression inside strings/comments and after the dot of an unknown object;
+- case-insensitive lookup with `.vbs` and native ASP integration tests;
+- best-effort type inference from `Server.CreateObject("ProgID")`,
+  `CreateObject("ProgID")`, a ProgID stored in a local string variable or
+  constant, `New RegExp`, and known returns such as `cmd.Execute` or
+  `fso.OpenTextFile(...)`;
+- a cached, scope-aware index of simple assignments that uses the most recent
+  assignment before the completion location;
+- sequential type inference through documented member chains such as
+  `cmd.Parameters.Append`, `rs.Fields.Item(0).Value`, and
   `document.documentElement.selectSingleNode`;
-- структурированные сигнатуры наиболее используемых методов ADO, Scripting
-  Runtime, MSXML, WinHTTP и RegExp; completion показывает имена, типы и
-  optional-параметры, например
-  `CreateParameter([Name As String], [Type As DataTypeEnum], ...)`;
-- стандартный Parameter Info popup внутри вызовов документированных COM-методов:
-  вызов через `⌘P`, подсветка текущего параметра и корректный подсчёт аргументов
-  при вложенных вызовах и запятых внутри строк;
-- контекстное ранжирование видимых констант `DataTypeEnum` и
-  `ParameterDirectionEnum` в аргументах `Command.CreateParameter`, включая
-  константы из подключённого `adovbs.inc`;
-- ограниченный каталог популярных объектов с официальной документацией:
-  - ADO: `Connection`, `Command`, `Recordset`, `Stream`, `Parameter`, `Field`
-    и основные коллекции;
-  - Scripting Runtime: `Dictionary`, `FileSystemObject`, `File`, `Folder`,
-    `Drive`, `TextStream`;
-  - MSXML: `DOMDocument`, DOM nodes/lists, `ServerXMLHTTP`;
-  - `WinHttp.WinHttpRequest.5.1`;
-  - `VBScript.RegExp` и результаты `Execute`;
-- неизвестные и кастомные ProgID намеренно не получают предполагаемых членов.
-- начальная модель пользовательских классов:
-  - тип экземпляра выводится из `Set value = New ClassName`;
-  - completion показывает поля, методы и свойства класса;
-  - внешнему коду показываются только public members, а private members и
-    class-level `Dim` скрываются;
-  - классы находятся как в текущем файле, так и в include-графе;
-  - member completion работает внутри простого `With value` для
-    пользовательских классов, встроенных ASP-объектов и известных COM-типов;
-  - поддержаны `(New ClassName).Member`, `Me`, цепочки вида
-    `factory.CreateWorker().Member` и переменная, которой присвоен такой return;
-  - функция или `Property Get` получает user-class return type, если её
-    результату непосредственно присваивается `New ClassName`;
-  - qualified `With factory.Current()` и nested `With .Current()` продолжают
-    модель возвращаемого пользовательского класса;
-  - при `Option Explicit` bare assignment больше не попадает в completion как
-    неявное объявление.
+- structured signatures for common ADO, Scripting Runtime, MSXML, WinHTTP, and
+  RegExp methods, including names, types, and optional parameters;
+- standard Parameter Info (`Cmd/Ctrl+P`) for documented COM methods, with
+  correct current-argument tracking through nested calls and commas in strings;
+- contextual ranking of visible `DataTypeEnum` and `ParameterDirectionEnum`
+  constants for `Command.CreateParameter`, including constants from
+  `adovbs.inc`;
+- a deliberately limited catalog based on official documentation: ADO
+  `Connection`, `Command`, `Recordset`, `Stream`, `Parameter`, `Field`, and
+  common collections; Scripting Runtime `Dictionary`, `FileSystemObject`,
+  `File`, `Folder`, `Drive`, and `TextStream`; MSXML `DOMDocument`, DOM
+  nodes/lists, and `ServerXMLHTTP`; `WinHttp.WinHttpRequest.5.1`; and
+  `VBScript.RegExp` plus `Execute` results;
+- no guessed members for unknown or custom ProgIDs;
+- initial user-class modeling: `Set value = New ClassName`, public member
+  completion/navigation, hidden private/class-level `Dim` members, classes
+  from the current file or include graph, simple `With value`,
+  `(New ClassName).Member`, `Me`, direct function/property `New` returns,
+  `factory.CreateWorker().Member`, qualified `With factory.Current()`, nested
+  `With .Current()`, and no implicit completion declarations from bare
+  assignments under `Option Explicit`.
 
-Осталось:
+Remaining:
 
-- поддержка default members в сокращённых цепочках, например
-  `rs.Fields("Name").Value` без явного `.Item`;
-- type inference для объектов, присвоенных в include-файле и используемых в
-  подключающем ASP-файле;
-- расширить type inference пользовательских классов на return через локальную
-  промежуточную переменную, условные ветви и присваивания из include-файлов;
-- расширение контекстного ранжирования на остальные документированные enum и
-  insert handlers для конструкций с параметрами;
-- Quick Documentation для документированных COM-членов: показывать сигнатуру,
-  возвращаемый тип и краткое описание метода при наведении курсора на его имя,
-  а также через стандартное действие документации IDE;
-- при появлении stub index — completion проектных символов вне include-графа.
+- default members in abbreviated chains such as
+  `rs.Fields("Name").Value` without `.Item`;
+- type inference for objects assigned in an include and used by the including
+  ASP file;
+- user-class return inference through local intermediate variables,
+  conditional branches, and include assignments;
+- contextual ranking for other documented enums and insert handlers for
+  parameterized constructs;
+- Quick Documentation for documented COM members;
+- completion for project symbols outside the include graph after a stub index
+  exists.
 
-Backlog стандартных, но менее приоритетных объектов:
+Lower-priority catalog backlog:
 
-- `CDO.Message` и `CDO.Configuration`;
-- ADSI-типы, получаемые через `GetObject("WinNT://...")` / `LDAP://...`;
+- `CDO.Message` and `CDO.Configuration`;
+- ADSI types returned by `GetObject("WinNT://...")` and `LDAP://...`;
 - `WScript.Shell`;
-- устаревшие IIS-компоненты `MSWC.*`;
-- Office Automation (`Excel.Application` и аналогичные) — только с явным
-  предупреждением, так как серверная автоматизация Office не рекомендуется;
-- `<OBJECT RUNAT="Server" PROGID="...">` как дополнительный источник типа.
+- legacy `MSWC.*` IIS components;
+- Office Automation such as `Excel.Application`, only with an explicit warning
+  because server-side Office automation is discouraged;
+- `<OBJECT RUNAT="Server" PROGID="...">` as another type source.
 
-Кастомные ProgID (`SMTPRus.SMTPRus.1`, `LYFUpload.UploadFile` и любые компоненты
-конкретного проекта) не включать во встроенный каталог. В будущем можно добавить
-пользовательские декларации типов/членов, но плагин не должен угадывать их API.
+Project-specific ProgIDs such as `SMTPRus.SMTPRus.1` and
+`LYFUpload.UploadFile` must not be built into the catalog. A future user-defined
+type/member mechanism is acceptable; the plugin must not guess their APIs.
 
-Критерий готовности:
+### 6. Go to Definition, Find Usages, and symbol resolve — MVP complete
 
-- completion помогает писать типовой ASP/VBScript-код;
-- список подсказок не требует полного resolve всего проекта на каждый вызов.
+Implemented:
 
-### 6. Go To Definition, Find Usages и symbol resolve — MVP выполнен
+- scope-aware resolve for local variables, parameters, top-level declarations,
+  and implicit assignment declarations;
+- a cached per-file symbol table;
+- include-graph cross-file navigation and usages;
+- fast candidate prefiltering for global Find Usages;
+- tests for shadowing, local symbols, include chains, and cycles;
+- navigation to public methods, properties, and fields on user-class instances,
+  including classes from includes;
+- class-member resolve inside simple `With value`;
+- `Option Explicit` disables implicit declarations from bare assignments and
+  loop variables, and a dotted member no longer falls back to a same-named
+  global symbol.
 
-Однофайловая и include-навигация уже работает, как и обратный поиск
-использований. Дальнейшая работа относится к расширению модели символов и
-масштабированию, а не к созданию механизма с нуля.
+Remaining:
 
-Реализовано:
+- class-member inference beyond direct `Set FunctionName = New ClassName`;
+- generalized nested `With` for COM/member-return chains;
+- expansion of undeclared-name diagnostics only after real-project validation,
+  preserving conservative behavior for dynamic members;
+- a project-wide stub/index for top-level `Sub`, `Function`, `Const`, `Class`,
+  and `Property` declarations outside the include graph.
 
-- resolve с учётом scope:
-  - локальные переменные внутри `Sub` / `Function`;
-  - параметры;
-  - top-level declarations;
-  - implicit assignment declarations;
-- кэшируемая таблица символов файла;
-- include-граф для cross-file navigation и usages;
-- быстрый предварительный поиск кандидатов для глобального Find Usages;
-- тесты shadowing, локальных символов, include-цепочек и циклов.
-- переход к public method/property/field пользовательского класса для
-  экземпляра из `New`, включая класс из include-файла;
-- resolve class members в простом `With value`;
-- `Option Explicit` отключает создание implicit declaration из bare assignment
-  и переменной цикла; dotted member не откатывается к одноимённому глобальному
-  символу.
+Acceptance criteria:
 
-Осталось:
-
-- расширить class-member inference за пределы непосредственного
-  `Set FunctionName = New ClassName`;
-- обобщить nested `With` на COM/member-return цепочки, а не только на
-  пользовательские классы;
-- расширять диагностику необъявленных имён только после проверки реальными
-  проектами, сохраняя консервативную политику для динамических членов;
-- stub/index для top-level символов вне include-графа:
-  - `Sub`;
-  - `Function`;
-  - `Const`;
-  - `Class`;
-  - `Property`.
-
-Критерий готовности:
-
-- local resolve корректен внутри одного файла;
-- cross-file resolve работает для include-сценариев;
-- resolve не ухудшает производительность больших файлов.
+- local resolve is correct within one file;
+- cross-file resolve works for include scenarios;
+- resolve does not degrade large-file performance.
 
 ### 7. Inspections
 
-Реализовано:
+Implemented:
 
-- inspection отсутствующего `file`/`virtual` include использует тот же
-  reference-resolver, что и навигация, и подсвечивает только путь;
-- обычные HTML-комментарии и include-синтаксис в `.html` игнорируются;
-- добавлены тесты отсутствующих и существующих relative/virtual include.
-- inspection необъявленных идентификаторов включается только при
-  `Option Explicit`, проверяет корневое имя выражения и намеренно не ругается
-  на члены после точки, поскольку COM и проектные API динамические;
-- при проверке учитываются локальные и файловые объявления, параметры,
-  возвращаемое имя функции, пользовательские классы, `Me`, ASP/VBScript
-  built-ins и объявления из прямых/транзитивных include;
-- необъявленная переменная цикла при `Option Explicit` больше не считается
-  неявным объявлением; без `Option Explicit` прежнее VBScript-поведение
-  сохраняется;
-- каталог built-ins общий для completion и inspection, поэтому они не
-  расходятся по стандартным функциям, константам и объектам ASP/WSH.
+- missing `file`/`virtual` include inspection using the same resolver as
+  navigation and highlighting only the path;
+- ordinary HTML comments and include-like syntax in `.html` are ignored;
+- tests for present and missing relative/virtual includes;
+- undeclared-identifier inspection only under `Option Explicit`, checking root
+  expression names while deliberately ignoring members after a dot because COM
+  and project APIs are dynamic;
+- local/file declarations, parameters, function return names, user classes,
+  `Me`, ASP/VBScript built-ins, and direct/transitive includes are recognized;
+- undeclared loop variables under `Option Explicit` are not treated as implicit
+  declarations, while classic VBScript behavior remains unchanged without
+  `Option Explicit`;
+- one shared built-in catalog for completion and inspection.
 
-После 1.0:
+After 1.0:
 
-- Добавить inspection для unused `Dim` / `Const`; реальный `Option Explicit`
-  аудит уже пройден без false positives.
-- Пополнять built-in whitelist только по воспроизводимым ложным срабатываниям.
-- Не включать тяжёлые inspections без подтверждённой линейной стоимости.
+- add an unused `Dim`/`Const` inspection after a dedicated false-positive
+  audit;
+- extend the built-in whitelist only for reproducible false positives;
+- do not enable expensive inspections without demonstrated linear cost.
 
-Критерий готовности:
+Acceptance criteria:
 
-- inspections помогают находить реальные ошибки;
-- inspections не создают лагов при редактировании больших файлов.
+- inspections find real errors;
+- inspections do not cause editing latency on large files.
 
-### 8. Санитарная очистка перед публикацией — выполнена
+### 8. Publication cleanup — complete
 
-Выполнено:
+- template and debug components were removed or excluded;
+- `plugin.xml` contains current Marketplace metadata and dependencies;
+- change notes, Apache 2.0 license, and custom light/dark icons are present;
+- `since-build` matches the tested PhpStorm 2025.2.4 baseline (`252.27397`),
+  and the ZIP is compatible with verified 262 and 263 platforms;
+- README documents actual capabilities, limitations, release automation, and
+  the post-1.0 roadmap;
+- stable `1.0.0` is published on GitHub and JetBrains Marketplace.
 
-- удалены/исключены шаблонные и debug-компоненты;
-- `plugin.xml` содержит актуальные Marketplace name/description/dependencies;
-- подготовлены change notes, Apache 2.0 license и собственные light/dark icons;
-- `since-build` соответствует проверенному PhpStorm 2025.2.4 (`252.27397`), ZIP
-  также совместим с проверенными Plugin Verifier платформами 262 и 263;
-- README описывает фактические возможности, ограничения и post-1.0 roadmap.
+## Deferred backlog
 
-Критерий готовности:
+Dedicated `global.asa` support:
 
-- проект не содержит template-мусора;
-- README и plugin metadata соответствуют фактическому состоянию;
-- плагин готов к дальнейшей подготовке к публикации.
+- recognize `.asa` and the special role of `global.asa`;
+- parse `<script language="VBScript" runat="server">` blocks;
+- support `Application_OnStart`, `Application_OnEnd`, `Session_OnStart`, and
+  `Session_OnEnd`;
+- account for application- and session-level object declarations;
+- provide navigation, completion, and Structure View for a file structure that
+  is not reducible to ordinary `<% ... %>` scriptlets.
 
-## Отложенный backlog
+## Recommended next steps
 
-- Добавить отдельную поддержку `global.asa`:
-  - распознавать расширение `.asa` и специальную роль файла `global.asa`;
-  - разбирать server-side блоки `<script language="VBScript" runat="server">`;
-  - поддержать стандартные обработчики событий `Application_OnStart`,
-    `Application_OnEnd`, `Session_OnStart` и `Session_OnEnd`;
-  - учесть декларации объектов уровня application/session;
-  - добавить навигацию, completion и Structure View с учётом особой структуры
-    файла, которая не сводится к обычным ASP scriptlet-блокам `<% ... %>`.
-
-## Рекомендуемый порядок ближайших задач
-
-1. [x] Собрать и повторно проверить `1.0.0` с тем же языковым feature set, что
-   у принятого `1.0.0-rc3`.
-2. Загрузить финальный ZIP в Marketplace, создать Git tag и GitHub Release.
-3. Исправлять найденные совместимость/регрессии в patch-релизах `1.0.x`.
-4. В `1.1.0` перейти к задачам из `docs/POST_1_0_ROADMAP.md`: unused
-   declarations, расширенный type inference, default members, Quick
-   Documentation, stub index и `global.asa`.
-5. Parser-классификацию повторять при изменениях lexer/parser; текущие 40
-   дефектных исходников и 2 служебных файла TTS не блокируют выпуск.
+1. [x] Build and revalidate `1.0.0` with the accepted `1.0.0-rc3` language
+   feature set.
+2. [x] Upload the final ZIP to Marketplace and create the Git tag and GitHub
+   Release.
+3. [x] Implement range-aware formatting as the first `1.1` feature, including
+   file-wide control-flow context and exact preservation outside selected lines.
+4. [x] Validate and prepare the focused `1.1.0` release candidate without
+   publishing it.
+5. After explicit release approval, commit the candidate, tag `v1.1.0`, and
+   publish the GitHub Release that triggers the Marketplace workflow.
+6. Fix compatibility issues and regressions in supported patch releases.
+7. Continue with the remaining post-1.0 work: unused declarations, deeper type
+   inference, default members, Quick Documentation, a stub index, and
+   `global.asa`.
+8. Repeat parser classification whenever lexer/parser behavior changes. The 40
+   defective TTS source files and two service-data files do not block releases.

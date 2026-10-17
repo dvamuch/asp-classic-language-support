@@ -1,45 +1,47 @@
 # TTS parser audit
 
-Актуальная классификация parser diagnostics на рабочей копии TTS. Это не
-backlog из 42 ошибок плагина: аудит отделяет ограничения парсера от реальных
-дефектов и служебных файлов legacy-проекта.
+This is the current classification of parser diagnostics in the working TTS
+checkout. It is not a backlog of 42 plugin bugs: the audit separates parser
+limitations from real source defects and non-ASP service files in the legacy
+project.
 
-- Дата повторного аудита: 22 сентября 2026 года.
-- Корень: `/Users/dvamuch/work-projects/TTS`.
-- TTS HEAD: `75312cb`, включая локальные незакоммиченные изменения.
-- Проверено: 2200 `.asp` / `.inc` файлов.
-- Без parser diagnostics: 2158 файлов.
-- С diagnostics: 42 файла.
-- Падений и зависаний парсера: 0.
-- Время полного прогона: 110,5 с на текущей машине.
+- Audit repeated on September 22, 2026.
+- Root: `/Users/dvamuch/work-projects/TTS`.
+- TTS HEAD: `75312cb`, including local uncommitted changes.
+- Files checked: 2,200 `.asp` and `.inc` files.
+- Files without parser diagnostics: 2,158.
+- Files with diagnostics: 42.
+- Parser crashes or hangs: 0.
+- Full run time: 110.5 seconds on the current machine.
 
-Аудит воспроизводится отдельным read-only тестом; исходники TTS не меняются:
+The audit is reproducible through a dedicated read-only test. It does not
+modify TTS sources:
 
 ```bash
 ./gradlew test --tests '*AspTtsParserAuditTest' \
   -PttsProjectDir=/Users/dvamuch/work-projects/TTS
 ```
 
-Полный отчёт создаётся в `build/reports/tts-parser-audit.txt`.
+The complete report is written to `build/reports/tts-parser-audit.txt`.
 
-## Что исправлено во время повторного аудита
+## Fixes made during the repeated audit
 
-Первый прогон актуального native file-wide parser показал 82 файла. Из них 40
-были ложными diagnostics на двух валидных ASP-конструкциях:
+The first run of the current native file-wide parser reported 82 files. Forty
+were false diagnostics caused by two valid ASP constructs:
 
-- закрывающий `%>` выражения `<%= ... %>` на следующей строке;
-- `Select Case`, у которого заголовок и `Case` находятся в разных ASP-блоках.
+- the closing `%>` of an `<%= ... %>` expression appearing on the next line;
+- a `Select Case` whose header and `Case` clauses are in different ASP blocks.
 
-Обе конструкции поддержаны, добавлены минимальные regression-тесты. Повторный
-полный прогон уменьшил остаток до 42 файлов.
+Both constructs are now supported and covered by minimal regression tests. A
+second complete run reduced the remainder to 42 files.
 
-## Классификация остатка
+## Classification of the remaining files
 
-Подтверждённых валидных конструкций, которые не умеет разбирать плагин: **0**.
+Confirmed valid constructs unsupported by the plugin: **0**.
 
-### Реальные синтаксические дефекты TTS — 40 файлов
+### Real TTS syntax defects — 40 files
 
-Неверный оператор `=>` вместо `>=`:
+Invalid `=>` operator instead of `>=`:
 
 ```text
 PhoneNumbers/functions.asp
@@ -52,7 +54,7 @@ inc/functions.asp
 inc/functions_sl.asp
 ```
 
-Перенос выражения после `&` без обязательного `_`:
+Expression continued after `&` without the required `_` marker:
 
 ```text
 admin/linksu2o.asp
@@ -61,7 +63,7 @@ monitoring/GroupList.asp
 network/networkroutesr.asp
 ```
 
-Пустая физическая строка сразу после явного continuation marker `_`:
+An empty physical line immediately after an explicit `_` continuation marker:
 
 ```text
 services/sendmail_pservice_memo.asp
@@ -80,10 +82,9 @@ troubles/troublereport_sl.asp
 troubles/troublereportxls_new.asp
 ```
 
-Остальные повреждённые legacy/generated-фрагменты: лишние или отсутствующие
-скобки и `End If`, незакомментированный текст внутри VBScript, сломанные
-кавычки, недопустимый `<% =...%>` и использование ключевого слова `Step` как
-имени переменной:
+Other damaged legacy/generated fragments: extra or missing parentheses and
+`End If` clauses, uncommented prose inside VBScript, broken quotes, invalid
+`<% =...%>` syntax, and use of the `Step` keyword as a variable name:
 
 ```text
 500-100.asp
@@ -102,24 +103,25 @@ users/user2groupadd.asp
 users/userorders_sl3.asp
 ```
 
-Исправление этих файлов не входит в репозиторий плагина и не является блокером
-версии 1.0. Parser diagnostics на них полезны и не должны подавляться
-расширением грамматики.
+Fixing these files is outside the plugin repository and was not a blocker for
+version 1.0. Their parser diagnostics are useful and must not be suppressed by
+loosening the grammar.
 
-### Служебные или не-ASP данные — 2 файла
+### Service or non-ASP data — 2 files
 
 ```text
 smt/lang/lang.it.pack/_vti_cnf/smt.base.asp
 smt/lang/lang.pt.asp
 ```
 
-Первый файл содержит метаданные Microsoft FrontPage, второй — quoted-printable
-данные. Расширение `.asp` в данном случае не означает исполняемый ASP Classic.
+The first file contains Microsoft FrontPage metadata; the second contains
+quoted-printable data. An `.asp` extension does not make either file executable
+ASP Classic source.
 
-## Историческое сравнение
+## Historical comparison
 
-Аудит от 30 июля 2026 года проверял 2477 файлов и оставлял 52 неоднозначных
-случая. Тот список относился к прежней рабочей копии TTS и старой архитектуре
-parser/injection, поэтому больше не является рабочим backlog. Текущий аудит
-запускается кодом теста, сохраняет подробные descriptions/context и должен
-повторяться перед release candidate при изменениях lexer/parser.
+The July 30, 2026 audit checked 2,477 files and left 52 ambiguous cases. That
+list belonged to an older TTS checkout and the former parser/injection
+architecture, so it is no longer an active backlog. The current audit is run by
+the test code, records detailed descriptions and context, and should be
+repeated before a release candidate whenever the lexer or parser changes.

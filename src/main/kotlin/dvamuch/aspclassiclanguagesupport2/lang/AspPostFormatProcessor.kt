@@ -32,7 +32,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val startedAt = System.nanoTime()
         val operationSnapshot = AspFormatOperationGuard.take(file)
         try {
-            formatVbScriptFragments(file, settings, placementSource = operationSnapshot?.text)
+            formatVbScriptFragments(file, settings, placementSource = operationSnapshot?.text, targetRange = null)
         } finally {
             validateWholeOperation(file, settings, operationSnapshot)
             AspFormatPerformanceTrace.record("post-total", file, startedAt)
@@ -45,13 +45,15 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val startedAt = System.nanoTime()
         val operationSnapshot = AspFormatOperationGuard.take(source)
         try {
-            if (rangeToReformat.startOffset != 0 || rangeToReformat.endOffset < source.textLength) {
-                return rangeToReformat
-            }
-            val oldLength = source.textLength
-            formatVbScriptFragments(source, settings, placementSource = operationSnapshot?.text)
-            val delta = source.textLength - oldLength
-            return TextRange(rangeToReformat.startOffset, (rangeToReformat.endOffset + delta).coerceAtMost(source.textLength))
+            val document = PsiDocumentManager.getInstance(source.project).getDocument(source)
+                ?: return rangeToReformat
+            val expandedRange = FormattingRangeSupport.expandToWholeLines(document.text, rangeToReformat)
+            return formatVbScriptFragments(
+                source,
+                settings,
+                placementSource = operationSnapshot?.text,
+                targetRange = expandedRange
+            )
         } finally {
             validateWholeOperation(source, settings, operationSnapshot)
             AspFormatPerformanceTrace.record("post-total", source, startedAt)
@@ -60,16 +62,22 @@ class AspPostFormatProcessor : PostFormatProcessor {
 
     override fun isWhitespaceOnly(): Boolean = false
 
-    internal fun prepareCodeSpacing(file: PsiFile, settings: CodeStyleSettings) {
-        if (!isProcessing.get()) formatVbScriptFragments(file, settings, formatSpacing = true)
+    internal fun prepareCodeSpacing(
+        file: PsiFile,
+        settings: CodeStyleSettings,
+        targetRange: TextRange? = null
+    ): TextRange {
+        if (isProcessing.get()) return targetRange ?: TextRange(0, file.textLength)
+        return formatVbScriptFragments(file, settings, formatSpacing = true, targetRange = targetRange)
     }
 
     private fun formatVbScriptFragments(
         file: PsiFile,
         settings: CodeStyleSettings,
         formatSpacing: Boolean = false,
-        placementSource: String? = null
-    ) {
+        placementSource: String? = null,
+        targetRange: TextRange? = null
+    ): TextRange {
         val startedAt = System.nanoTime()
         var stageStartedAt = startedAt
         val passName = if (formatSpacing) "spacing" else "layout"
@@ -78,8 +86,17 @@ class AspPostFormatProcessor : PostFormatProcessor {
             stageStartedAt = System.nanoTime()
         }
         val documentManager = PsiDocumentManager.getInstance(file.project)
-        val document = documentManager.getDocument(file) ?: return
+        val document = documentManager.getDocument(file) ?: return targetRange ?: TextRange(0, file.textLength)
         val originalDocumentText = document.text
+        val originalTargetRange = targetRange
+        fun currentTargetRange(): TextRange? = originalTargetRange?.let { original ->
+            val currentStart = original.startOffset.coerceIn(0, document.textLength)
+            TextRange(
+                currentStart,
+                (original.endOffset + document.textLength - originalDocumentText.length)
+                    .coerceIn(currentStart, document.textLength)
+            )
+        }
         isProcessing.set(true)
         try {
             val keywordCase = VbScriptKeywordCaseSupport.mode(settings)
@@ -92,7 +109,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
             val initialSnapshot = document.text
             val insertions = multilineScriptletInsertions(
                 initialSnapshot,
-                customSettings.MATCH_ASP_DELIMITER_PLACEMENT
+                customSettings.MATCH_ASP_DELIMITER_PLACEMENT,
+                currentTargetRange()
             )
             if (insertions.isNotEmpty()) {
                 val insertedLineOffsets = insertedLineOffsets(insertions)
@@ -110,7 +128,7 @@ class AspPostFormatProcessor : PostFormatProcessor {
 
             val fragmentSnapshot = document.text
             val fragments = collectFragments(fragmentSnapshot)
-            if (fragments.isEmpty()) return
+            if (fragments.isEmpty()) return currentTargetRange() ?: TextRange(0, document.textLength)
             val placementFragments = placementSource?.let(::collectFragments)
                 ?.takeIf { it.size == fragments.size }
             val controlProfiles = analyzeControlFlow(fragments)
@@ -144,10 +162,11 @@ class AspPostFormatProcessor : PostFormatProcessor {
                 markedSource.namespace,
                 fragments.size
             )
+            val activeRange = currentTargetRange()
             val replacements = fragments.mapIndexed { index, fragment ->
                 ProgressManager.checkCanceled()
                 val formatted = extractedFragments?.getOrNull(index) ?: fragment.originalContent
-                prepareForHost(
+                val prepared = prepareForHost(
                     fragment = fragment,
                     formattedContent = formatted,
                     profile = controlProfiles[index],
@@ -156,12 +175,13 @@ class AspPostFormatProcessor : PostFormatProcessor {
                     spaceInsideDelimiters = customSettings.SPACE_INSIDE_ASP_DELIMITERS,
                     matchDelimiterPlacement = customSettings.MATCH_ASP_DELIMITER_PLACEMENT
                 )
+                restrictFragmentReplacement(fragment, prepared, activeRange)
             }
             traceStage("extract-and-prepare")
-            if (!replacementsAreSafe(fragmentSnapshot, fragments, replacements, keywordCase)) {
+            if (!replacementsAreSafe(fragmentSnapshot, fragments, replacements, keywordCase, activeRange)) {
                 LOG.warn("ASP formatting cancelled because scriptlet ranges or tokens changed")
                 restoreDocument(documentManager, document, originalDocumentText)
-                return
+                return originalTargetRange ?: TextRange(0, document.textLength)
             }
             traceStage("fragment-safety")
             val fragmentReplacements = fragments.indices.mapNotNull { index ->
@@ -174,19 +194,24 @@ class AspPostFormatProcessor : PostFormatProcessor {
             applyDocumentReplacements(document, fragmentReplacements)
             traceStage("fragment-write")
             if (formatSpacing) {
-                removeSemanticLayout(document, controlProfiles, indentSize)
+                removeSemanticLayout(document, controlProfiles, indentSize, currentTargetRange())
             } else {
-                applySemanticLayout(document, controlProfiles, indentSize)
-                alignMultilineAttributeScriptlets(document, settings)
+                applySemanticLayout(document, controlProfiles, indentSize, currentTargetRange())
+                alignMultilineAttributeScriptlets(document, settings, currentTargetRange())
             }
             documentManager.commitDocument(document)
             traceStage("semantic-layout")
-            val expectedDocumentText = normalizeAspKeywordCase(originalDocumentText, keywordCase)
+            val expectedDocumentText = normalizeAspKeywordCase(
+                originalDocumentText,
+                keywordCase,
+                originalTargetRange
+            )
             if (nonWhitespaceSkeleton(document.text) != nonWhitespaceSkeleton(expectedDocumentText)) {
                 LOG.warn("ASP formatting changed non-whitespace document content; rolling back scriptlet pass")
                 restoreDocument(documentManager, document, originalDocumentText)
             }
             traceStage("pass-safety")
+            return currentTargetRange() ?: TextRange(0, document.textLength)
         } catch (error: Throwable) {
             restoreDocument(documentManager, document, originalDocumentText)
             throw error
@@ -210,20 +235,24 @@ class AspPostFormatProcessor : PostFormatProcessor {
         val document = documentManager.getDocument(file) ?: return
         documentManager.commitDocument(document)
 
-        val expected = if (snapshot.fullFile) {
-            normalizeAspKeywordCase(snapshot.text, VbScriptKeywordCaseSupport.mode(settings))
-        } else {
-            snapshot.text
-        }
+        val expected = normalizeAspKeywordCase(
+            snapshot.text,
+            VbScriptKeywordCaseSupport.mode(settings),
+            snapshot.range.takeUnless { snapshot.fullFile }
+        )
         val actual = document.text
         val contentChanged = nonWhitespaceSkeleton(expected) != nonWhitespaceSkeleton(actual)
         val tokensChanged = aspTokenFingerprint(expected) != aspTokenFingerprint(actual)
         val parserErrorsIncreased = aspParseErrorCount(file) > snapshot.parseErrorCount
-        if (contentChanged || tokensChanged || parserErrorsIncreased) {
+        val outsideRangeChanged = !snapshot.fullFile && (
+            !actual.startsWith(snapshot.text.substring(0, snapshot.range.startOffset)) ||
+                !actual.endsWith(snapshot.text.substring(snapshot.range.endOffset))
+            )
+        if (contentChanged || tokensChanged || parserErrorsIncreased || outsideRangeChanged) {
             LOG.warn(
                 "ASP Reformat Code safety guard restored the original document: " +
                     "contentChanged=$contentChanged, tokensChanged=$tokensChanged, " +
-                    "parserErrorsIncreased=$parserErrorsIncreased"
+                    "parserErrorsIncreased=$parserErrorsIncreased, outsideRangeChanged=$outsideRangeChanged"
             )
             restoreDocument(documentManager, document, snapshot.text)
         }
@@ -247,10 +276,14 @@ class AspPostFormatProcessor : PostFormatProcessor {
 
     private fun multilineScriptletInsertions(
         text: String,
-        matchDelimiterPlacement: Boolean
+        matchDelimiterPlacement: Boolean,
+        targetRange: TextRange?
     ): List<Pair<Int, String>> {
         return buildList {
             collectFragments(text).forEach { fragment ->
+                if (targetRange != null && !FormattingRangeSupport.contains(targetRange, fragment.outerRange)) {
+                    return@forEach
+                }
                 if (fragment.originalContent.none { char -> char == '\n' || char == '\r' }) return@forEach
 
                 val start = fragment.outerRange.startOffset
@@ -436,6 +469,22 @@ class AspPostFormatProcessor : PostFormatProcessor {
         return addBaseIndent(content, fragment.baseIndent, closingExtraIndent)
     }
 
+    private fun restrictFragmentReplacement(
+        fragment: Fragment,
+        replacement: String,
+        targetRange: TextRange?
+    ): String {
+        if (targetRange == null || FormattingRangeSupport.contains(targetRange, fragment.outerRange)) {
+            return replacement
+        }
+        return FormattingRangeSupport.mergeSelectedLines(
+            fragment.originalContent,
+            replacement,
+            fragment.contentRange.startOffset,
+            targetRange
+        ) ?: fragment.originalContent
+    }
+
     private fun padInlineContent(content: String, enabled: Boolean): String {
         val body = content.trim()
         if (body.isEmpty() || !enabled) return body
@@ -518,7 +567,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
     private fun applySemanticLayout(
         document: com.intellij.openapi.editor.Document,
         profiles: List<ControlProfile>,
-        indentSize: Int
+        indentSize: Int,
+        targetRange: TextRange?
     ) {
         val snapshot = document.text
         val hosts = collectFragments(snapshot)
@@ -531,7 +581,9 @@ class AspPostFormatProcessor : PostFormatProcessor {
             val openOffset = host.outerRange.startOffset
             val openLineStart = document.getLineStartOffset(document.getLineNumber(openOffset))
             val beforeOpen = snapshot.subSequence(openLineStart, openOffset)
-            if (beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.openingDepth > 0) {
+            if (FormattingRangeSupport.selectsOffset(targetRange, openLineStart) &&
+                beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.openingDepth > 0
+            ) {
                 replacements[TextRange(openLineStart, openOffset)] =
                     beforeOpen.toString() + " ".repeat(profile.openingDepth * indentSize)
             }
@@ -544,7 +596,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
                     segmentStart,
                     segmentEnd,
                     profile.endDepth * indentSize,
-                    replacements
+                    replacements,
+                    targetRange
                 )
             }
         }
@@ -562,7 +615,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
     private fun removeSemanticLayout(
         document: com.intellij.openapi.editor.Document,
         profiles: List<ControlProfile>,
-        indentSize: Int
+        indentSize: Int,
+        targetRange: TextRange?
     ) {
         val snapshot = document.text
         val hosts = collectFragments(snapshot)
@@ -575,7 +629,9 @@ class AspPostFormatProcessor : PostFormatProcessor {
             val openOffset = host.outerRange.startOffset
             val openLineStart = document.getLineStartOffset(document.getLineNumber(openOffset))
             val beforeOpen = snapshot.subSequence(openLineStart, openOffset).toString()
-            if (beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.openingDepth > 0) {
+            if (FormattingRangeSupport.selectsOffset(targetRange, openLineStart) &&
+                beforeOpen.all { char -> char == ' ' || char == '\t' } && profile.openingDepth > 0
+            ) {
                 val normalized = removeSemanticIndentSuffix(beforeOpen, profile.openingDepth * indentSize)
                 if (normalized != beforeOpen) {
                     replacements[TextRange(openLineStart, openOffset)] = normalized
@@ -590,7 +646,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
                     segmentStart,
                     segmentEnd,
                     profile.endDepth * indentSize,
-                    replacements
+                    replacements,
+                    targetRange
                 )
             }
         }
@@ -647,33 +704,48 @@ class AspPostFormatProcessor : PostFormatProcessor {
         snapshot: String,
         fragments: List<Fragment>,
         replacements: List<String>,
-        keywordCase: Int
+        keywordCase: Int,
+        targetRange: TextRange?
     ): Boolean {
         if (fragments.size != replacements.size) return false
         return fragments.indices.all { index ->
             ProgressManager.checkCanceled()
             val fragment = fragments[index]
             val range = fragment.contentRange
-                range.startOffset >= 0 && range.endOffset <= snapshot.length &&
+            val keywordNormalized = restrictFragmentReplacement(
+                fragment,
+                VbScriptKeywordCaseSupport.normalizeText(fragment.originalContent, keywordCase),
+                targetRange
+            )
+
+            // Every fragment is still validated, including fragments outside
+            // a partial range, whose replacement must remain byte-for-byte
+            // identical to their original content.
+            range.startOffset >= 0 && range.endOffset <= snapshot.length &&
                 range.substring(snapshot) == fragment.originalContent &&
-                preservesVbScriptTokens(fragment.originalContent, replacements[index], keywordCase)
+                preservesVbScriptTokens(keywordNormalized, replacements[index])
         }
     }
 
-    private fun preservesVbScriptTokens(before: String, after: String, keywordCase: Int): Boolean {
-        val expected = VbScriptKeywordCaseSupport.normalizeText(before, keywordCase)
+    private fun preservesVbScriptTokens(expected: String, after: String): Boolean {
         return nonWhitespaceSkeleton(expected) == nonWhitespaceSkeleton(after) &&
             significantVbScriptTokens(expected) == significantVbScriptTokens(after)
     }
 
-    private fun normalizeAspKeywordCase(text: String, keywordCase: Int): String {
+    private fun normalizeAspKeywordCase(text: String, keywordCase: Int, targetRange: TextRange?): String {
         val fragments = collectFragments(text)
         if (fragments.isEmpty()) return text
         return buildString(text.length) {
             var sourceOffset = 0
             fragments.forEach { fragment ->
                 append(text, sourceOffset, fragment.contentRange.startOffset)
-                append(VbScriptKeywordCaseSupport.normalizeText(fragment.originalContent, keywordCase))
+                append(
+                    restrictFragmentReplacement(
+                        fragment,
+                        VbScriptKeywordCaseSupport.normalizeText(fragment.originalContent, keywordCase),
+                        targetRange
+                    )
+                )
                 sourceOffset = fragment.contentRange.endOffset
             }
             append(text, sourceOffset, text.length)
@@ -723,7 +795,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
         startOffset: Int,
         endOffset: Int,
         extraIndent: Int,
-        replacements: MutableMap<TextRange, String>
+        replacements: MutableMap<TextRange, String>,
+        targetRange: TextRange?
     ) {
         var lineStart = if (startOffset == 0 || text[startOffset - 1] == '\n' || text[startOffset - 1] == '\r') {
             startOffset
@@ -733,7 +806,9 @@ class AspPostFormatProcessor : PostFormatProcessor {
         while (lineStart < endOffset) {
             var firstCode = lineStart
             while (firstCode < endOffset && (text[firstCode] == ' ' || text[firstCode] == '\t')) firstCode++
-            if (firstCode < endOffset && text[firstCode] != '\n' && text[firstCode] != '\r') {
+            if (FormattingRangeSupport.selectsOffset(targetRange, lineStart) &&
+                firstCode < endOffset && text[firstCode] != '\n' && text[firstCode] != '\r'
+            ) {
                 val currentIndent = text.subSequence(lineStart, firstCode).toString()
                 replacements[TextRange(lineStart, firstCode)] = currentIndent + " ".repeat(extraIndent)
             }
@@ -746,7 +821,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
         startOffset: Int,
         endOffset: Int,
         extraIndent: Int,
-        replacements: MutableMap<TextRange, String>
+        replacements: MutableMap<TextRange, String>,
+        targetRange: TextRange?
     ) {
         var lineStart = if (startOffset == 0 || text[startOffset - 1] == '\n' || text[startOffset - 1] == '\r') {
             startOffset
@@ -756,7 +832,9 @@ class AspPostFormatProcessor : PostFormatProcessor {
         while (lineStart < endOffset) {
             var firstCode = lineStart
             while (firstCode < endOffset && (text[firstCode] == ' ' || text[firstCode] == '\t')) firstCode++
-            if (firstCode < endOffset && text[firstCode] != '\n' && text[firstCode] != '\r') {
+            if (FormattingRangeSupport.selectsOffset(targetRange, lineStart) &&
+                firstCode < endOffset && text[firstCode] != '\n' && text[firstCode] != '\r'
+            ) {
                 val currentIndent = text.subSequence(lineStart, firstCode).toString()
                 val normalized = removeSemanticIndentSuffix(currentIndent, extraIndent)
                 if (normalized != currentIndent) {
@@ -786,7 +864,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
      */
     private fun alignMultilineAttributeScriptlets(
         document: com.intellij.openapi.editor.Document,
-        settings: CodeStyleSettings
+        settings: CodeStyleSettings,
+        targetRange: TextRange?
     ) {
         val text = document.text
         val fragments = collectFragments(text)
@@ -802,7 +881,8 @@ class AspPostFormatProcessor : PostFormatProcessor {
             if (scanner.attributeLinePrefix != null) {
                 val lineStart = findLineStart(text, fragment.outerRange.startOffset)
                 val before = text.substring(lineStart, fragment.outerRange.startOffset)
-                if (before.all { it == ' ' || it == '\t' } &&
+                if (FormattingRangeSupport.selectsOffset(targetRange, lineStart) &&
+                    before.all { it == ' ' || it == '\t' } &&
                     lineStart > scanner.attributeLineStart
                 ) {
                     val desired = scanner.attributeLinePrefix + " ".repeat(continuationIndent)
@@ -967,6 +1047,7 @@ internal object AspFormatPerformanceTrace {
 internal object AspFormatOperationGuard {
     internal data class Snapshot(
         val text: String,
+        val range: TextRange,
         val fullFile: Boolean,
         val parseErrorCount: Int,
         val commandIdentity: Runnable?,
@@ -983,6 +1064,7 @@ internal object AspFormatOperationGuard {
         val aspPsi = file.viewProvider.getPsi(AspLanguage) ?: file
         current.get()[file] = Snapshot(
             text = document.text,
+            range = range,
             fullFile = range.startOffset == 0 && range.endOffset >= file.textLength,
             parseErrorCount = PsiTreeUtil.collectElementsOfType(aspPsi, PsiErrorElement::class.java).size,
             commandIdentity = CommandProcessor.getInstance().currentCommand,

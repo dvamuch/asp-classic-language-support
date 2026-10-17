@@ -2,6 +2,8 @@ package dvamuch.aspclassiclanguagesupport2.lang
 
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.application.options.CodeStyle
+import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCodeStyleSettings
@@ -236,6 +238,34 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
         assertEquals("Continuation indentation must settle in one pass", onceFormatted, file.text)
     }
 
+    fun testMultilineIfContinuationOpensControlFlowBlock() {
+        val file = myFixture.configureByText(
+            VbScriptFileType,
+            """
+            If Session("MM_Username") <> "" Then
+            If (False Or CStr(Session("MM_UserAuthorization")) = "") Or _
+            (InStr(1, MM_authorizedUsers, Session("MM_UserAuthorization")) >= 1) Then
+            MM_grantAccess = True
+            End If
+            End If
+            """.trimIndent()
+        )
+
+        reformat(file)
+
+        assertEquals(
+            """
+            If Session("MM_Username") <> "" Then
+                If (False Or CStr(Session("MM_UserAuthorization")) = "") Or _
+                        (InStr(1, MM_authorizedUsers, Session("MM_UserAuthorization")) >= 1) Then
+                    MM_grantAccess = True
+                End If
+            End If
+            """.trimIndent(),
+            file.text
+        )
+    }
+
     fun testDoesNotFailOnIncompleteBlock() {
         val file = myFixture.configureByText(
             VbScriptFileType,
@@ -321,6 +351,66 @@ class VbScriptFormatterIntegrationTest : BasePlatformTestCase() {
                 End Property
             End Class
             """.trimIndent()
+        )
+    }
+
+    fun testFormatsOnlySelectedLinesUsingEarlierControlFlowContext() {
+        val source = """
+            option explicit
+            If outer Then
+            outside=1
+            if inner then
+            selected=left+right
+            end if
+            after=2
+            End If
+        """.trimIndent()
+        val file = myFixture.configureByText(VbScriptFileType, source)
+        val selectionStart = source.indexOf("if inner then")
+        val selectionEnd = source.indexOf("end if", selectionStart) + "end if".length
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            """
+            option explicit
+            If outer Then
+            outside=1
+                If inner Then
+                    selected = left + right
+                End If
+            after=2
+            End If
+            """.trimIndent(),
+            file.text
+        )
+    }
+
+    fun testSingleSelectedVbScriptLineDoesNotChangeItsNeighbors() {
+        val source = """
+            If ready Then
+            value=left+right
+            outside=other+1
+            End If
+        """.trimIndent()
+        val file = myFixture.configureByText(VbScriptFileType, source)
+        val selectionStart = source.indexOf("value=")
+        val selectionEnd = selectionStart + "value=left+right".length
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            """
+            If ready Then
+                value = left + right
+            outside=other+1
+            End If
+            """.trimIndent(),
+            file.text
         )
     }
 

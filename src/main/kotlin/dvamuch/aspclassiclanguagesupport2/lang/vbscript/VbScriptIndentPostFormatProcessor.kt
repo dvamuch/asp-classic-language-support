@@ -6,29 +6,29 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleSettings
 import com.intellij.psi.impl.source.codeStyle.PostFormatProcessor
+import dvamuch.aspclassiclanguagesupport2.lang.FormattingRangeSupport
 
 class VbScriptIndentPostFormatProcessor : PostFormatProcessor {
     override fun processElement(source: PsiElement, settings: CodeStyleSettings): PsiElement {
         val file = source.containingFile ?: return source
         if (file.language != VbScriptLanguage || isProcessing.get()) return source
-        runGuarded { VbScriptIndentNormalizer.normalize(file, settings) }
+        runGuarded { VbScriptIndentNormalizer.normalize(file, settings, null) }
         return source
     }
 
     override fun processText(source: PsiFile, rangeToReformat: TextRange, settings: CodeStyleSettings): TextRange {
         if (source.language != VbScriptLanguage || isProcessing.get()) return rangeToReformat
-        val oldLength = source.textLength
-        runGuarded { VbScriptIndentNormalizer.normalize(source, settings) }
-        val delta = source.textLength - oldLength
-        return TextRange(rangeToReformat.startOffset, (rangeToReformat.endOffset + delta).coerceAtMost(source.textLength))
+        return runGuarded {
+            VbScriptIndentNormalizer.normalize(source, settings, rangeToReformat) ?: rangeToReformat
+        }
     }
 
     override fun isWhitespaceOnly(): Boolean = false
 
-    private fun runGuarded(action: () -> Unit) {
+    private fun <T> runGuarded(action: () -> T): T {
         isProcessing.set(true)
         try {
-            action()
+            return action()
         } finally {
             isProcessing.remove()
         }
@@ -40,21 +40,34 @@ class VbScriptIndentPostFormatProcessor : PostFormatProcessor {
 }
 
 internal object VbScriptIndentNormalizer {
-    fun normalize(file: PsiFile, settings: CodeStyleSettings) {
+    fun normalize(file: PsiFile, settings: CodeStyleSettings, range: TextRange? = null): TextRange? {
         val documentManager = PsiDocumentManager.getInstance(file.project)
-        val document = documentManager.getDocument(file) ?: return
+        val document = documentManager.getDocument(file) ?: return range
+        val original = document.text
+        val selectedRange = range?.let { FormattingRangeSupport.expandToWholeLines(original, it) }
         val indentOptions = settings.getCommonSettings(VbScriptLanguage).indentOptions
         val indentSize = indentOptions?.INDENT_SIZE ?: 4
         val continuationIndentSize = indentOptions?.CONTINUATION_INDENT_SIZE ?: 8
-        val spaced = VbScriptLexicalSpacingNormalizer.normalizeText(document.text)
+        val spaced = VbScriptLexicalSpacingNormalizer.normalizeText(original)
         val indented = normalizeText(spaced, indentSize, continuationIndentSize)
         val normalized = VbScriptKeywordCaseSupport.normalizeText(
             indented,
             VbScriptKeywordCaseSupport.mode(settings)
         )
-        if (normalized == document.text) return
-        document.replaceString(0, document.textLength, normalized)
+        val replacement = if (selectedRange == null) {
+            normalized
+        } else {
+            FormattingRangeSupport.mergeSelectedLines(original, normalized, 0, selectedRange) ?: original
+        }
+        if (replacement == original) return selectedRange ?: TextRange(0, original.length)
+        document.replaceString(0, document.textLength, replacement)
         documentManager.commitDocument(document)
+        return selectedRange?.let {
+            TextRange(
+                it.startOffset,
+                (it.endOffset + replacement.length - original.length).coerceAtMost(replacement.length)
+            )
+        } ?: TextRange(0, replacement.length)
     }
 
     fun normalizeText(text: String, indentSize: Int, continuationIndentSize: Int = indentSize): String {
@@ -69,7 +82,8 @@ internal object VbScriptIndentNormalizer {
                 }
                 val line = text.substring(offset, lineEnd)
                 val code = line.trimStart(' ', '\t')
-                val currentLineContinues = hasLineContinuation(line)
+                val currentLineContinues = isVbScriptLineContinuation(line)
+                val flowResult = code.takeIf(String::isNotEmpty)?.let(tracker::consume)
                 if (code.isEmpty()) {
                     append(line)
                 } else if (previousLineContinues) {
@@ -81,7 +95,7 @@ internal object VbScriptIndentNormalizer {
                     append(" ".repeat(continuationIndent))
                     append(code)
                 } else {
-                    val level = tracker.consume(code).indentLevel
+                    val level = flowResult!!.indentLevel
                     continuationBaseIndent = level * indentSize
                     append(" ".repeat(continuationBaseIndent))
                     append(code)
@@ -105,21 +119,4 @@ internal object VbScriptIndentNormalizer {
 
     private fun startsWithClosingDelimiter(code: String): Boolean =
         code.startsWith(")") || code.startsWith("]")
-
-    private fun hasLineContinuation(line: String): Boolean {
-        if (!line.trimEnd().endsWith('_')) return false
-        // An underscore in a comment (including our ASP fragment markers) is
-        // not a continuation and must not suppress tracking of the next If/End If.
-        val source = "$line\n"
-        val lexer = VbScriptLexerAdapter()
-        lexer.start(source)
-        while (lexer.tokenType != null) {
-            if (lexer.tokenType == com.intellij.psi.TokenType.WHITE_SPACE &&
-                VbScriptFormattingSupport.isLineContinuation(source.subSequence(lexer.tokenStart, lexer.tokenEnd))
-            ) return true
-            lexer.advance()
-        }
-        return false
-    }
-
 }

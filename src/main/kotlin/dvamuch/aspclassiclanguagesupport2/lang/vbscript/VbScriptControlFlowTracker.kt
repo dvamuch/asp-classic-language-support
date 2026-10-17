@@ -2,11 +2,36 @@ package dvamuch.aspclassiclanguagesupport2.lang.vbscript
 
 internal class VbScriptControlFlowTracker {
     private val blocks = mutableListOf<BlockKind>()
+    private var continuedStatement: StringBuilder? = null
+    private var continuedStatementDepth = 0
 
     val depth: Int
         get() = blocks.size
 
     fun consume(rawLine: String): LineResult {
+        val continues = isVbScriptLineContinuation(rawLine)
+        val line = logicalLinePart(rawLine, continues)
+        continuedStatement?.let { statement ->
+            if (line.isNotEmpty()) {
+                if (statement.isNotEmpty()) statement.append(' ')
+                statement.append(line)
+            }
+            if (continues) return LineResult(continuedStatementDepth, false)
+
+            continuedStatement = null
+            return consumeLogicalLine(statement.toString())
+        }
+
+        if (continues) {
+            continuedStatementDepth = depth
+            continuedStatement = StringBuilder(line)
+            return LineResult(depth, false)
+        }
+
+        return consumeLogicalLine(line)
+    }
+
+    private fun consumeLogicalLine(rawLine: String): LineResult {
         val line = stripComment(rawLine).trim()
         if (line.isEmpty()) return LineResult(depth, false)
         val lower = line.lowercase()
@@ -35,6 +60,11 @@ internal class VbScriptControlFlowTracker {
         }
 
         return LineResult(depth, false)
+    }
+
+    private fun logicalLinePart(rawLine: String, continues: Boolean): String {
+        val line = stripComment(rawLine).trim()
+        return if (continues) line.removeSuffix("_").trimEnd() else line
     }
 
     private fun popThrough(kind: BlockKind) {
@@ -120,4 +150,20 @@ internal class VbScriptControlFlowTracker {
         val MEMBER_MODIFIERS = Regex("^(?:(?:public|private|default)\\s+)+")
         val PROPERTY_DECLARATION = Regex("^property\\s+(get|let|set)\\b.*")
     }
+}
+
+internal fun isVbScriptLineContinuation(line: String): Boolean {
+    if (!line.trimEnd().endsWith('_')) return false
+    // An underscore in a comment (including ASP fragment markers) is not a
+    // continuation and must not suppress tracking of the next block boundary.
+    val source = "$line\n"
+    val lexer = VbScriptLexerAdapter()
+    lexer.start(source)
+    while (lexer.tokenType != null) {
+        if (lexer.tokenType == com.intellij.psi.TokenType.WHITE_SPACE &&
+            VbScriptFormattingSupport.isLineContinuation(source.subSequence(lexer.tokenStart, lexer.tokenEnd))
+        ) return true
+        lexer.advance()
+    }
+    return false
 }

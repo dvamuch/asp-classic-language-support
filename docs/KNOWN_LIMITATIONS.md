@@ -1,20 +1,26 @@
-# Known limitations for 1.0
+# Known limitations
 
-- Поддерживаемая линия IntelliJ Platform начинается с PhpStorm 2025.2.4, build
-  `252.27397`. Полный набор тестов проходит на минимальном baseline и на текущем
-  PhpStorm 2026.2.2, где также проверяются реальные проекты; IntelliJ IDEA
-  Ultimate и WebStorm 2026.2.2, а также PyCharm 2026.2.3 проходят Plugin Verifier
-  и функциональный smoke-набор; PyCharm дополнительно проверен вручную.
-  Другие продукты платформы пока не проверялись проектом, даже если Marketplace
-  разрешает установку по их модульной совместимости.
-- HTML-часть ASP форматирует встроенный HTML formatter. Для глубоко вложенных
-  legacy-страниц рекомендуется отключить `Editor | Code Style | HTML | Other |
-  Align text`, иначе платформа может создавать очень длинные отступы.
-- ASP-код внутри сложных многострочных quoted HTML attributes сохраняется
-  безопасно, но plugin пока не перестраивает структуру таких атрибутов.
-- Анализ динамических COM-объектов консервативен: неизвестные member names не
-  считаются ошибками, чтобы не создавать массовые false positives.
-- `global.asa` и server-side `<script runat="server">` ещё не имеют отдельной
-  ASP lifecycle-модели.
-- Плагин нельзя включить или выключить без перезапуска IDE из-за нединамического
-  extension point подсветки парных ключевых слов.
+- The supported IntelliJ Platform line starts with PhpStorm 2025.2.4, build
+  `252.27397`. The complete test suite passes on that minimum baseline and on
+  the current PhpStorm 2026.2.3 development target, which is also used for
+  real-project validation. IntelliJ IDEA Ultimate and WebStorm 2026.2.2, plus
+  PyCharm 2026.2.3, pass Plugin Verifier and the functional smoke suite;
+  PyCharm has also been tested manually. Other IntelliJ Platform products have
+  not been validated by the project even if Marketplace permits installation
+  based on their module compatibility.
+- The HTML portion of an ASP file is formatted by the built-in HTML formatter.
+  On deeply nested legacy pages, disable `Editor | Code Style | HTML | Other |
+  Align text`; otherwise, the platform may produce extremely long indentation.
+- ASP code inside complex, multiline quoted HTML attributes is preserved
+  safely, but the plugin does not yet restructure those attributes.
+- Selection-aware formatting in the locally prepared 1.1.0 candidate operates on
+  complete physical lines. A selection that starts or ends in the middle of a
+  line formats that entire line. ASP delimiter placement is changed only when
+  the complete scriptlet is inside the selected line range. Marketplace
+  version `1.0.0` predates selection-aware formatting.
+- Analysis of dynamic COM objects is intentionally conservative. Unknown
+  member names are not reported as errors to avoid widespread false positives.
+- `global.asa` and server-side `<script runat="server">` blocks do not yet have
+  a dedicated ASP lifecycle model.
+- Enabling or disabling the plugin requires an IDE restart because keyword-pair
+  highlighting uses a non-dynamic IntelliJ Platform extension point.

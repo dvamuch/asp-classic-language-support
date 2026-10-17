@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "dvamuch"
-version = "1.0.0"
+version = "1.1.0"
 
 // Grammar-Kit loads IntelliJ services in forked Java processes. Keep their
 // runtime state outside the immutable IDE SDK extracted into Gradle's cache.
@@ -39,10 +39,10 @@ intellijPlatform {
 
         changeNotes = """
             <ul>
-              <li>First stable release, promoted after real-world use of the 1.0 release candidates.</li>
-              <li>Supports PhpStorm 2025.2.4 and newer compatible IntelliJ Platform builds.</li>
-              <li>Validated on PhpStorm, IntelliJ IDEA Ultimate, WebStorm and PyCharm.</li>
-              <li>Adds a one-time, non-modal feedback invitation after sustained ASP use. No telemetry is collected.</li>
+              <li>Adds selection-aware formatting for ASP, INC and standalone VBS files.</li>
+              <li>Uses file-wide VBScript control-flow context while keeping lines outside the selection unchanged.</li>
+              <li>Preserves safe ASP delimiter boundaries, Undo, mixed line endings and second-pass idempotence.</li>
+              <li>Fixes indentation after multiline block-opening statements joined with the VBScript continuation marker.</li>
             </ul>
         """.trimIndent()
     }

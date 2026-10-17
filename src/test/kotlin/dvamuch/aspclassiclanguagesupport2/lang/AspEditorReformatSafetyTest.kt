@@ -3,7 +3,9 @@ package dvamuch.aspclassiclanguagesupport2.lang
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.ScrollType
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
 import com.intellij.psi.codeStyle.CodeStyleManager
 import com.intellij.application.options.CodeStyle
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -16,11 +18,8 @@ import java.nio.file.Path
 class AspEditorReformatSafetyTest : BasePlatformTestCase() {
     fun testBugInfoQuotedExpressionInsideHtmlAttribute() {
         val ttsRoot = System.getProperty(TTS_PROJECT_DIR_PROPERTY) ?: return
-        val source = readGitHead(Path.of(ttsRoot), "Bugs/BugInfo.asp").replace(
-            "link=\"http://tts.naukanet.ru/files/filedownload.asp?",
-            "link=\"https://tts.naukanet.ru/files/filedownload.asp?"
-        )
-        val target = "link=\"https://tts.naukanet.ru/files/filedownload.asp?<%=\"FileID=\" & rsFiles(\"FileID\") %>\""
+        val source = readGitHead(Path.of(ttsRoot), "Bugs/BugInfo.asp")
+        val target = "link=\"/files/filedownload.asp?<%=\"FileID=\" & rsFiles(\"FileID\") %>\""
         val targetOffset = source.indexOf(target)
         assertTrue("Expected the file-download ASP expression in Bugs/BugInfo.asp", targetOffset >= 0)
         val file = myFixture.configureByText("BugInfo.asp", source)
@@ -107,6 +106,7 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
         )
 
         val file = myFixture.configureByText("index.asp", healthySource)
+        preserveKeywordCase(file)
         myFixture.editor.caretModel.moveToOffset(0)
         myFixture.editor.scrollingModel.scrollVertically(0)
         WriteCommandAction.runWriteCommandAction(project) {
@@ -124,10 +124,61 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
         assertEquals("Reformat after Undo changed non-whitespace characters", before, after)
     }
 
+    fun testOrderInfoSelectionPreservesOutsideContextAndIsResponsive() {
+        val ttsRoot = System.getProperty(TTS_PROJECT_DIR_PROPERTY) ?: return
+        val source = readGitHead(Path.of(ttsRoot), "customers/orderinfo.asp")
+        val unformatted = source.replaceFirst(
+            "Set rsLnkOrderProject = oDB.Execute( _",
+            "Set rsLnkOrderProject=oDB.Execute( _"
+        )
+        assertFalse("Expected the orderinfo execute statement to be de-formatted", source == unformatted)
+
+        val file = myFixture.configureByText("orderinfo-selection.asp", unformatted)
+        CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+            .KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
+        val before = file.text
+        val selection = orderInfoExecuteSelection(before)
+        val selectedLines = FormattingRangeSupport.expandToWholeLines(before, selection)
+        val prefix = before.substring(0, selectedLines.startOffset)
+        val suffix = before.substring(selectedLines.endOffset)
+
+        myFixture.editor.selectionModel.setSelection(selection.startOffset, selection.endOffset)
+        val startedAt = System.nanoTime()
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+        val onceFormatted = file.text
+        println("ORDERINFO SELECTION REFORMAT ${elapsedMillis}ms")
+
+        assertTrue("Text before the selected orderinfo lines changed", onceFormatted.startsWith(prefix))
+        assertTrue("Text after the selected orderinfo lines changed", onceFormatted.endsWith(suffix))
+        assertEquals(
+            "Selection formatting changed orderinfo code",
+            before.filterNot(Char::isWhitespace),
+            onceFormatted.filterNot(Char::isWhitespace)
+        )
+        assertTrue(
+            "The selected execute statement was not spaced",
+            onceFormatted.contains("Set rsLnkOrderProject = oDB.Execute( _")
+        )
+        assertTrue(
+            "orderinfo selection formatting took ${elapsedMillis}ms; limit=${ORDERINFO_SELECTION_LIMIT_MILLIS}ms",
+            elapsedMillis < ORDERINFO_SELECTION_LIMIT_MILLIS
+        )
+
+        val secondSelection = orderInfoExecuteSelection(onceFormatted)
+        myFixture.editor.selectionModel.setSelection(secondSelection.startOffset, secondSelection.endOffset)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        assertEquals("A second selected reformat changed orderinfo.asp", onceFormatted, file.text)
+    }
+
     private fun assertEditorReformatPreservesHealthyBugsIndex(targetVisible: Boolean) {
         val ttsRoot = System.getProperty(TTS_PROJECT_DIR_PROPERTY) ?: return
         val source = readGitHead(Path.of(ttsRoot), "Bugs/index.asp")
         val file = myFixture.configureByText("index.asp", source)
+        preserveKeywordCase(file)
         val targetOffset = source.indexOf("Set rsViewers = Server.CreateObject")
         assertTrue("Expected rsViewers block in healthy Bugs/index.asp", targetOffset >= 0)
 
@@ -163,7 +214,24 @@ class AspEditorReformatSafetyTest : BasePlatformTestCase() {
         return String(bytes, StandardCharsets.UTF_8)
     }
 
+    private fun preserveKeywordCase(file: PsiFile) {
+        CodeStyle.getSettings(file)
+            .getCustomSettings(VbScriptCodeStyleSettings::class.java)
+            .KEYWORD_CASE = VbScriptCodeStyleSettings.KEYWORD_CASE_PRESERVE
+    }
+
+    private fun orderInfoExecuteSelection(text: String): TextRange {
+        val start = text.indexOf("Set rsLnkOrderProject")
+        val whereLine = text.indexOf("Where L.TTSorderID", start)
+        assertTrue("Expected the orderinfo project query", start >= 0 && whereLine > start)
+        val closingLineStart = text.indexOf('\n', whereLine).takeIf { it >= 0 }?.plus(1) ?: text.length
+        val end = text.indexOf('\n', closingLineStart).takeIf { it >= 0 } ?: text.length
+        assertEquals(")", text.substring(closingLineStart, end).trim())
+        return TextRange(start, end)
+    }
+
     companion object {
         private const val TTS_PROJECT_DIR_PROPERTY = "tts.project.dir"
+        private const val ORDERINFO_SELECTION_LIMIT_MILLIS = 5_000L
     }
 }

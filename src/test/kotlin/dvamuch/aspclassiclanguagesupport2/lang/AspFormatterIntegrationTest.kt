@@ -665,6 +665,159 @@ class AspFormatterIntegrationTest : BasePlatformTestCase() {
         assertEquals("<%\nvalue = value + 1\n%>", file.text)
     }
 
+    fun testFormatsOnlySelectedAspLinesUsingEarlierControlFlowContext() {
+        val source = """
+            <div>
+            <%
+            If outer Then
+            outside=1
+            if inner then
+            selected=left+right
+            end if
+            after=2
+            End If
+            %>
+            </div>
+        """.trimIndent()
+        val file = myFixture.configureByText("selected-scriptlet.asp", source)
+        val selectionStart = source.indexOf("if inner then")
+        val selectionEnd = source.indexOf("end if", selectionStart) + "end if".length
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        val expected = """
+            <div>
+            <%
+            If outer Then
+            outside=1
+                If inner Then
+                    selected = left + right
+                End If
+            after=2
+            End If
+            %>
+            </div>
+        """.trimIndent()
+        assertEquals(expected, file.text)
+
+        val secondStart = file.text.indexOf("If inner Then")
+        val secondEnd = file.text.indexOf("End If", secondStart) + "End If".length
+        myFixture.editor.selectionModel.setSelection(secondStart, secondEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals("Selected formatting must be idempotent", expected, file.text)
+    }
+
+    fun testSelectedMultilineIfContinuationOpensNestedBlock() {
+        val source = """
+            <%
+            If Session("MM_Username") <> "" Then
+            If (False Or CStr(Session("MM_UserAuthorization")) = "") Or _
+            (InStr(1, MM_authorizedUsers, Session("MM_UserAuthorization")) >= 1) Then
+            MM_grantAccess = True
+            End If
+            End If
+            %>
+        """.trimIndent()
+        val file = myFixture.configureByText("selected-multiline-if.asp", source)
+        val selectionStart = source.indexOf("If (False")
+        val selectionEnd = source.indexOf("End If", selectionStart) + "End If".length
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            """
+            <%
+            If Session("MM_Username") <> "" Then
+                If (False Or CStr(Session("MM_UserAuthorization")) = "") Or _
+                        (InStr(1, MM_authorizedUsers, Session("MM_UserAuthorization")) >= 1) Then
+                    MM_grantAccess = True
+                End If
+            End If
+            %>
+            """.trimIndent(),
+            file.text
+        )
+    }
+
+    fun testFormatsSelectionAcrossAspAndHtmlWithoutChangingSurroundingLines() {
+        val source = """
+            <header>outside-before</header>
+            <% if ready then %>
+            <div><%=value+1%></div>
+            <% end if %>
+            <footer>outside-after</footer>
+        """.trimIndent()
+        val file = myFixture.configureByText("selected-mixed.asp", source)
+        val selectionStart = source.indexOf("<% if")
+        val selectionEnd = source.indexOf("%>", source.indexOf("<% end")) + 2
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            """
+            <header>outside-before</header>
+            <% If ready Then %>
+                <div><%= value + 1 %></div>
+            <% End If %>
+            <footer>outside-after</footer>
+            """.trimIndent(),
+            file.text
+        )
+    }
+
+    fun testSelectedHtmlAndExpressionUseControlFlowFromEarlierScriptlet() {
+        val source = """
+            <% If ready Then %>
+            <div><%=value+1%></div>
+            <% End If %>
+        """.trimIndent()
+        val file = myFixture.configureByText("selected-template-data.asp", source)
+        val selectionStart = source.indexOf("<div>")
+        val selectionEnd = selectionStart + "<div><%=value+1%></div>".length
+
+        myFixture.editor.selectionModel.setSelection(selectionStart, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(
+            """
+            <% If ready Then %>
+                <div><%= value + 1 %></div>
+            <% End If %>
+            """.trimIndent(),
+            file.text
+        )
+    }
+
+    fun testSelectedAspFormattingIsUndoable() {
+        val source = """
+            <% If ready Then %>
+            <span><%=value+1%></span>
+            <% End If %>
+            <p>outside</p>
+        """.trimIndent()
+        myFixture.configureByText("selected-undo.asp", source)
+        val selectionEnd = source.indexOf("%>", source.indexOf("<% End")) + 2
+
+        myFixture.editor.selectionModel.setSelection(0, selectionEnd)
+        myFixture.performEditorAction(IdeActions.ACTION_EDITOR_REFORMAT)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        assertFalse("The selected range should be formatted before Undo", source == myFixture.editor.document.text)
+
+        myFixture.performEditorAction(IdeActions.ACTION_UNDO)
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+
+        assertEquals(source, myFixture.editor.document.text)
+    }
+
     fun testUserTextCannotCollideWithInternalFragmentMarkers() {
         val source = """
             <%

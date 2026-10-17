@@ -3,6 +3,7 @@ package dvamuch.aspclassiclanguagesupport2.lang
 import com.intellij.application.options.CodeStyle
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.impl.source.codeStyle.PreFormatProcessor
 
 /** Normalize code widths before the HTML formatter decides where to wrap lines. */
@@ -11,12 +12,15 @@ class AspPreFormatProcessor : PreFormatProcessor {
         val file = element.psi.containingFile ?: return range
         if (file.language != AspLanguage) return range
         val startedAt = System.nanoTime()
-        AspFormatOperationGuard.capture(file, range)
-        if (range.startOffset != 0 || range.endOffset < file.textLength) return range
+        val document = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return range
+        val expandedRange = FormattingRangeSupport.expandToWholeLines(document.text, range)
+        AspFormatOperationGuard.capture(file, expandedRange)
         try {
-            val oldLength = file.textLength
-            AspPostFormatProcessor().prepareCodeSpacing(file, CodeStyle.getSettings(file))
-            return TextRange(0, (range.endOffset + file.textLength - oldLength).coerceAtMost(file.textLength))
+            return AspPostFormatProcessor().prepareCodeSpacing(
+                file,
+                CodeStyle.getSettings(file),
+                expandedRange
+            )
         } catch (error: Throwable) {
             AspFormatOperationGuard.discard(file)
             throw error
