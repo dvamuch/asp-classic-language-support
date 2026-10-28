@@ -43,6 +43,7 @@ intellijPlatform {
               <li>Uses file-wide VBScript control-flow context while keeping lines outside the selection unchanged.</li>
               <li>Preserves safe ASP delimiter boundaries, Undo, mixed line endings and second-pass idempotence.</li>
               <li>Fixes indentation after multiline block-opening statements joined with the VBScript continuation marker.</li>
+              <li>Uses HTML comments for template markup and VBScript comments for ASP code when toggling line comments.</li>
             </ul>
         """.trimIndent()
     }

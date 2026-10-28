@@ -7,18 +7,16 @@ This plugin aims to make the maintenance of legacy codebases more comfortable by
 
 ## Current Status
 
-The stable `1.0.0` release is published on JetBrains Marketplace and is ready
-for day-to-day navigation and editing of ASP Classic projects. Version `1.1.0`
-is prepared locally as a focused selection-aware formatting update but has not
-yet been tagged or published. Both lines require IntelliJ Platform build
-`252.27397` or later.
+The stable `1.1.0` release is ready for day-to-day navigation, editing,
+selection-aware formatting, and mixed-language line commenting in ASP Classic
+projects. It requires IntelliJ Platform build `252.27397` or later.
 
 ### Tested IDEs
 
 | IDE | Version and build | Validation |
 | --- | --- | --- |
-| PhpStorm | 2025.2.4 (`PS-252.27397.112`) | Compatibility baseline: complete 224-test suite and Plugin Verifier |
-| PhpStorm | 2026.2.3 (`PS-262.10968.76`) | Primary development target: complete 224-test suite, full TTS corpus audit, and real-project manual use |
+| PhpStorm | 2025.2.4 (`PS-252.27397.112`) | Compatibility baseline: complete 235-test suite and Plugin Verifier |
+| PhpStorm | 2026.2.3 (`PS-262.10968.76`) | Primary development target: complete 235-test suite, full TTS corpus audit, and real-project manual use |
 | IntelliJ IDEA Ultimate | 2026.2.2 (`IU-262.10315.125`) | Plugin Verifier and a 108-test functional smoke suite |
 | WebStorm | 2026.2.2 (`WS-262.10315.144`) | Plugin Verifier and a 108-test functional smoke suite |
 | PyCharm | 2026.2.3 (`PY-262.10968.92`) | Plugin Verifier, a 108-test functional smoke suite, and manual demo-project validation |
@@ -69,8 +67,9 @@ not collect or transmit telemetry.
   created with `New`, including classes from ASP includes, direct user-class
   return chains, `(New ClassName).Member`, `Me`, and qualified/nested `With`;
   `With` completion also supports ASP built-ins and known COM types.
-- **Editor Features**: Line commenting, semantic folding, Structure View and
-  matching of paired VBScript block keywords.
+- **Editor Features**: Context-aware line commenting uses `<!-- ... -->` for
+  HTML and `'` for executable VBScript in mixed ASP files, alongside semantic
+  folding, Structure View and matching of paired VBScript block keywords.
 - **Formatting**: Formats `.vbs`, `.asp` and `.inc`, including mixed HTML and
   VBScript control flow spanning multiple scriptlets, spaces VBScript operators
   even in incomplete legacy fragments, preserves inline delimiter pairs, and

@@ -1,14 +1,14 @@
-# 1.1.0 release candidate
+# 1.1.0 release notes
 
 ## Release status
 
-Version 1.1.0 is prepared and validated locally. It has not been committed,
-tagged, published as a GitHub Release, or uploaded to JetBrains Marketplace.
-Publishing remains an explicit follow-up action.
+Version 1.1.0 is the first focused feature release after stable 1.0.0. This
+document records its release boundary, final artifact, and validation results.
 
-This is intentionally a focused release. It adds selection-aware formatting
-and the multiline control-flow correction needed for correct selected-block
-indentation; unrelated code-analysis backlog remains deferred to 1.2 and later.
+This is intentionally a focused release. It adds selection-aware formatting,
+the multiline control-flow correction needed for correct selected-block
+indentation, and context-aware line comments in mixed ASP/HTML files; unrelated
+code-analysis backlog remains deferred to 1.2 and later.
 
 ## User-visible changes
 
@@ -24,6 +24,15 @@ indentation; unrelated code-analysis backlog remains deferred to 1.2 and later.
   delimiter boundaries, and second-pass idempotence.
 - Multiline block-opening statements joined with `_`, including multiline
   `If ... Then`, now update control-flow depth before their body is indented.
+- Toggle Line Comment uses `<!-- ... -->` for HTML and `'` for executable
+  VBScript, including selections that cross ASP/HTML boundaries.
+- Scriptlet delimiters are kept intact when `<%` shares the first code line or
+  `%>` shares the final code line; toggling the comments restores the original
+  text exactly.
+- Inline HTML containing `<%= ... %>` is commented as HTML. ASP include
+  directives and existing nested HTML comments are reversibly escaped using
+  the same convention as the native JetBrains HTML commenter, then restored
+  exactly when comments are toggled off.
 
 Selection remains deliberately line-based: a selection beginning or ending in
 the middle of a line formats that complete physical line. ASP delimiter
@@ -32,14 +41,14 @@ placement is restructured only when the complete scriptlet is selected.
 ## Artifact
 
 - ZIP: `build/distributions/asp-classic-language-support-1.1.0.zip`
-- Size: 558534 bytes.
-- SHA-256: `d2b2e2fb118a8a16ef632bf0f5a7b9d786189fe5edb80bf7d544e86233450c17`.
+- Size: 575857 bytes.
+- SHA-256: `2473a07e1202e2ce037a11ec300d83c380981017cb3b420d4337713f0233b172`.
 - Minimum IDE build: `252.27397` (PhpStorm 2025.2.4).
 - Bytecode target: Java 21.
 
 ## Validation
 
-- All 224 ordinary automated tests pass on both:
+- All 235 ordinary automated tests pass on both:
   - PhpStorm `PS-252.27397.112` (2025.2.4), the compatibility baseline;
   - PhpStorm `PS-262.10968.76` (2026.2.3), the current development target.
 - Real editor-action tests pass on TTS Git HEAD `189fed0`, including
@@ -56,7 +65,10 @@ placement is restructured only when the complete scriptlet is selected.
   - IntelliJ IDEA Ultimate `IU-262.10315.125` (2026.2.2);
   - WebStorm `WS-262.10315.144` (2026.2.2);
   - PyCharm `PY-262.10968.92` (2026.2.3).
-- Plugin Verifier 1.410 reports the plugin compatible with:
+- The focused 18-test editor-action suite, including native-HTML parity and all mixed ASP/HTML line
+  comment scenarios, passes on the same IntelliJ IDEA, WebStorm, and PyCharm
+  builds.
+- Plugin Verifier 1.411 reports the plugin compatible with:
   - PhpStorm `PS-252.27397.112`;
   - PhpStorm `PS-262.10968.76`;
   - IntelliJ IDEA Ultimate `IU-262.10315.125`;
@@ -78,13 +90,8 @@ COM type inference, Quick Documentation, a project-wide symbol index,
 inside quoted HTML attributes. Those items remain in
 [`POST_1_0_ROADMAP.md`](POST_1_0_ROADMAP.md).
 
-## Remaining publication steps
+## Publication process
 
-After explicit approval to release:
-
-1. review and commit the complete 1.1.0 change set;
-2. push the commit;
-3. create and push tag `v1.1.0`;
-4. publish the matching GitHub Release, which triggers the Marketplace
-   publishing workflow;
-5. confirm the GitHub Actions result and Marketplace approval.
+The `v1.1.0` GitHub Release triggers the Marketplace publishing workflow. The
+workflow repeats the release checks and uploads the same version to the default
+Marketplace channel; JetBrains then performs its own approval process.

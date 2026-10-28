@@ -4,12 +4,11 @@ Stable version `1.0.0` has been published. This document defines priorities for
 the `1.x` line without mixing new features with `1.0.x` patch releases, which
 are reserved for compatibility fixes and regressions.
 
-## 1.1.0 — selection-aware formatting prepared
+## 1.1.0 — selection-aware formatting and mixed-language commenting
 
-The first feature after stable `1.0.0` is implemented and validated in the
-local 1.1.0 release candidate. Marketplace version `1.0.0` only protects
-partial-format invocations from code corruption; 1.1.0 adds functional
-range-aware formatting for `.asp`, `.inc`, and `.vbs`.
+The first feature release after stable `1.0.0` adds functional range-aware
+formatting for `.asp`, `.inc`, and `.vbs`. Marketplace version `1.0.0` only
+protects partial-format invocations from code corruption.
 
 Implemented behavior:
 
@@ -32,6 +31,15 @@ analyzes the whole file for control-flow depth, and merges only selected lines
 back into the document. The operation guard also verifies exact prefix and
 suffix preservation around a partial range. Delimiter restructuring remains
 conservative: it runs only when the complete scriptlet is selected.
+
+The release also routes the standard line-comment action by physical ASP
+content: HTML uses `<!-- ... -->`, executable VBScript uses `'`, and mixed
+selections apply the appropriate syntax line by line. ASP delimiters remain in
+place, including when `<%` shares the first code line or `%>` shares the last
+one. Inline HTML containing `<%= ... %>` is treated as HTML; commenting it does
+not suppress server-side expression evaluation. Include directives and nested
+HTML comments are reversibly escaped using the same convention as the native
+JetBrains HTML commenter, then restored exactly when comments are toggled off.
 
 ## 1.2 — code analysis improvements
 

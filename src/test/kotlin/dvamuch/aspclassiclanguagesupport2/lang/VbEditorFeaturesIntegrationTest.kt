@@ -55,6 +55,193 @@ class VbEditorFeaturesIntegrationTest : BasePlatformTestCase() {
         )
     }
 
+    fun testTogglesHtmlLineInsideAspWithHtmlCommentSyntax() {
+        myFixture.configureByText(AspFileType, "<caret><div class=\"order\">Ready</div>")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals("<!--<div class=\"order\">Ready</div>-->", myFixture.editor.document.text)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals("<div class=\"order\">Ready</div>", myFixture.editor.document.text)
+    }
+
+    fun testTogglesMixedHtmlAndAspSelectionPerPhysicalLine() {
+        val original = """
+            <div>Before</div>
+            <%
+                SaveOrder
+            %>
+            <div>After</div>
+        """.trimIndent()
+        myFixture.configureByText(AspFileType, original)
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            """
+            <!--<div>Before</div>-->
+            <%
+            '    SaveOrder
+            %>
+            <!--<div>After</div>-->
+            """.trimIndent(),
+            myFixture.editor.document.text
+        )
+
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesHtmlLineContainingInlineAspExpressionAsHtml() {
+        val original = "<td><%= rsOrder(\"OrderName\") %></td>"
+        myFixture.configureByText(AspFileType, "<caret>$original")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals("<!--$original-->", myFixture.editor.document.text)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesSingleLineAspStatementInsideItsOpeningDelimiter() {
+        val original = "<% SaveOrder() %>"
+        myFixture.configureByText(AspFileType, "<caret>$original")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals("<% ' SaveOrder() %>", myFixture.editor.document.text)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesScriptletWhoseOpeningDelimiterSharesTheFirstCodeLine() {
+        val original = """
+            <% SaveOrder()
+                UpdateOrderStatus()
+            %>
+        """.trimIndent()
+        myFixture.configureByText(AspFileType, original)
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            """
+            <% ' SaveOrder()
+            '    UpdateOrderStatus()
+            %>
+            """.trimIndent(),
+            myFixture.editor.document.text
+        )
+
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesScriptletWhoseClosingDelimiterSharesTheLastCodeLine() {
+        val original = """
+            <%
+            SaveOrder()
+                UpdateOrderStatus() %>
+        """.trimIndent()
+        myFixture.configureByText(AspFileType, original)
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            """
+            <%
+            'SaveOrder()
+            '    UpdateOrderStatus() %>
+            """.trimIndent(),
+            myFixture.editor.document.text
+        )
+
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesAspIncludeDirectiveWithoutLeavingItActive() {
+        val original = "<!-- #include file=\"shared.inc\" -->"
+        myFixture.configureByText(AspFileType, "<caret>$original")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            "<!--&lt;!&ndash; #include file=\"shared.inc\" &ndash;&gt;-->",
+            myFixture.editor.document.text
+        )
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesHtmlContainingExistingCommentWithoutNestingIt() {
+        val original = "<div><!-- existing note --></div>"
+        myFixture.configureByText(AspFileType, "<caret>$original")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            "<!--<div>&lt;!&ndash; existing note &ndash;&gt;</div>-->",
+            myFixture.editor.document.text
+        )
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testNestedHtmlCommentEscapingMatchesNativeHtmlCommenter() {
+        val original = "<TD><!-- #BeginEditable \"main\" -->"
+        myFixture.configureByText("native.html", "<caret>$original")
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        val nativeHtmlResult = myFixture.editor.document.text
+
+        myFixture.configureByText(AspFileType, "<caret>$original")
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+
+        assertEquals(nativeHtmlResult, myFixture.editor.document.text)
+    }
+
+    fun testTogglesDreamweaverEditableBlockWithMixedAsp() {
+        val original = """
+            <TR>
+                <TD><!-- #BeginEditable "main" -->
+                    <% If rsUsers.EOF And rsUsers.BOF Then %>
+                        No data was found.
+                    <% End If ' end rsUsers.EOF And rsUsers.BOF %>
+        """.trimIndent()
+        myFixture.configureByText(AspFileType, original)
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(
+            """
+            <!--<TR>-->
+                <!--<TD>&lt;!&ndash; #BeginEditable "main" &ndash;&gt;-->
+                    <% ' If rsUsers.EOF And rsUsers.BOF Then %>
+                        <!--No data was found.-->
+                    <% ' End If ' end rsUsers.EOF And rsUsers.BOF %>
+            """.trimIndent(),
+            myFixture.editor.document.text
+        )
+
+        myFixture.editor.selectionModel.setSelection(0, myFixture.editor.document.textLength)
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
+    fun testTogglesIndentedHtmlWithoutMovingIndentation() {
+        val original = "    <span>Ready</span>"
+        myFixture.configureByText(AspFileType, "<caret>$original")
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals("    <!--<span>Ready</span>-->", myFixture.editor.document.text)
+
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        assertEquals(original, myFixture.editor.document.text)
+    }
+
     fun testBuildsNestedVbScriptFoldRegions() {
         myFixture.configureByText(
             VbScriptFileType,

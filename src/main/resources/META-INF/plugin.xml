@@ -46,6 +46,8 @@
                                        implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptSyntaxHighlighterFactory"/>
         <lang.commenter language="VBScript"
                         implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptCommenter"/>
+        <multiLangCommenter
+                implementation="dvamuch.aspclassiclanguagesupport2.lang.AspMultipleLangCommentProvider"/>
         <lang.foldingBuilder language="VBScript"
                              implementationClass="dvamuch.aspclassiclanguagesupport2.lang.vbscript.VbScriptFoldingBuilder"/>
         <lang.formatter language="VBScript"
