@@ -15,8 +15,8 @@ projects. It requires IntelliJ Platform build `252.27397` or later.
 
 | IDE | Version and build | Validation |
 | --- | --- | --- |
-| PhpStorm | 2025.2.4 (`PS-252.27397.112`) | Compatibility baseline: complete 235-test suite and Plugin Verifier |
-| PhpStorm | 2026.2.3 (`PS-262.10968.76`) | Primary development target: complete 235-test suite, full TTS corpus audit, and real-project manual use |
+| PhpStorm | 2025.2.4 (`PS-252.27397.112`) | Compatibility baseline: complete 241-test suite and Plugin Verifier |
+| PhpStorm | 2026.2.3 (`PS-262.10968.76`) | Primary development target: complete 241-test suite, full TTS corpus audit, and real-project manual use |
 | IntelliJ IDEA Ultimate | 2026.2.2 (`IU-262.10315.125`) | Plugin Verifier and a 108-test functional smoke suite |
 | WebStorm | 2026.2.2 (`WS-262.10315.144`) | Plugin Verifier and a 108-test functional smoke suite |
 | PyCharm | 2026.2.3 (`PY-262.10968.92`) | Plugin Verifier, a 108-test functional smoke suite, and manual demo-project validation |
@@ -74,13 +74,17 @@ not collect or transmit telemetry.
   VBScript control flow spanning multiple scriptlets, spaces VBScript operators
   even in incomplete legacy fragments, preserves inline delimiter pairs, and
   normalizes line continuations, including multiline block-opening statements.
-  The current development version can apply the same rules to selected whole
-  lines without changing surrounding lines.
+  Since 1.1, the same rules can be applied to selected whole lines without
+  changing surrounding lines.
 - **Safe Compound Attributes**: HTML file/URL quick-fixes preserve embedded ASP
   expressions inside attribute values.
 - **Reformat Safety Guard**: Captures the document before platform formatting
   and restores it if the complete operation changes code tokens or introduces
   new ASP parser errors.
+- **AI Agent Tools (since 1.2)**: When the JetBrains MCP Server is
+  enabled, connected agents can format files, run plugin-owned inspections,
+  list and resolve symbols, find include-aware usages, and inspect the
+  transitive include graph. See [`docs/MCP_TOOLS.md`](docs/MCP_TOOLS.md).
 
 ### Visual Demonstration
 ![ASP Classic Support Demo](./media/demo.png)
@@ -102,6 +106,9 @@ not collect or transmit telemetry.
   spacing, keyword case and indentation only to selected ASP/INC/VBS lines,
   using surrounding control-flow context without modifying the rest of the
   document.
+- [x] **MCP Tools for AI Agents (first 1.2 feature)**: Expose the formatter,
+  plugin inspections, symbol model, Find Usages, symbol resolution, and include
+  graph through the optional JetBrains MCP Server integration.
 - [ ] **Advanced Symbol Model**: Extend user-class inference beyond direct `New` returns and add default members plus indexed project symbols.
 - [ ] **Inspections**: Missing includes and conservative `Option Explicit`
   unresolved identifiers are covered; audit real projects, then add
@@ -205,7 +212,7 @@ per-file progress:
 The PhpStorm 2026.2 line has completed a full formatter safety audit of all
 2203 supported files in the current TTS working tree (Git HEAD `189fed0`,
 including its local uncommitted edits). The audit was repeated for the 1.1.0
-selection-formatting candidate after the operator, continuation-indent,
+selection-formatting release after the operator, continuation-indent,
 delimiter-placement, multiline-attribute, default keyword-case and large-file
 performance changes: no non-whitespace or ASP/VBScript token changes and no new
 parser errors were detected. The audit does not write to the TTS checkout; it
@@ -256,7 +263,7 @@ restructured by the delimiter-placement rule.
 
 ### Formatting a selection
 
-The locally prepared 1.1.0 candidate supports selection-aware formatting in
+Version 1.1.0 supports selection-aware formatting in
 `.asp`, `.inc`, and `.vbs`. Invoke **Reformat Code** with a selection to apply VBScript
 spacing, keyword case, continuation indentation, and control-flow indentation
 only to the touched physical lines. The formatter reads control-flow context
@@ -269,7 +276,7 @@ middle of a line, that complete line is formatted. ASP delimiter placement is
 changed only when the complete scriptlet is inside the selected lines. Complex
 ASP expressions embedded in quoted HTML attributes retain the limitations
 described above. Marketplace version `1.0.0` predates this feature; it is
-included in the locally prepared `1.1.0` candidate.
+included in stable `1.1.0`.
 
 The detailed implementation status and prioritised backlog live in
 [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md). Formatter safety findings are in
@@ -278,8 +285,9 @@ Release boundaries are listed in
 [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md), while work intentionally
 deferred past 1.0 lives in
 [`docs/POST_1_0_ROADMAP.md`](docs/POST_1_0_ROADMAP.md).
-The current candidate and validation record are in
-[`docs/RELEASE_1_1.md`](docs/RELEASE_1_1.md); the stable 1.0 record is in
+The current stable release and validation record are in
+[`docs/RELEASE_1_2.md`](docs/RELEASE_1_2.md); the 1.1 record is in
+[`docs/RELEASE_1_1.md`](docs/RELEASE_1_1.md), the stable 1.0 record is in
 [`docs/RELEASE_1_0.md`](docs/RELEASE_1_0.md), and the original manual
 acceptance checklist is retained in
 [`docs/RELEASE_1_0_RC1.md`](docs/RELEASE_1_0_RC1.md).

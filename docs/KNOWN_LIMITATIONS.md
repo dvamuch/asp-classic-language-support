@@ -13,14 +13,17 @@
   Align text`; otherwise, the platform may produce extremely long indentation.
 - ASP code inside complex, multiline quoted HTML attributes is preserved
   safely, but the plugin does not yet restructure those attributes.
-- Selection-aware formatting in the locally prepared 1.1.0 candidate operates on
+- Selection-aware formatting in stable 1.1.0 operates on
   complete physical lines. A selection that starts or ends in the middle of a
   line formats that entire line. ASP delimiter placement is changed only when
-  the complete scriptlet is inside the selected line range. Marketplace
-  version `1.0.0` predates selection-aware formatting.
+  the complete scriptlet is inside the selected line range.
 - Analysis of dynamic COM objects is intentionally conservative. Unknown
   member names are not reported as errors to avoid widespread false positives.
 - `global.asa` and server-side `<script runat="server">` blocks do not yet have
   a dedicated ASP lifecycle model.
 - Enabling or disabling the plugin requires an IDE restart because keyword-pair
   highlighting uses a non-dynamic IntelliJ Platform extension point.
+- The optional MCP integration exposes only diagnostics owned by this plugin
+  plus parser errors. It does not aggregate every inspection installed in the
+  IDE, and MCP formatting currently targets complete files rather than editor
+  selections.

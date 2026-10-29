@@ -6,8 +6,8 @@ of future work. It is the working technical roadmap for contributors.
 ## Current status
 
 The plugin is stable enough for day-to-day navigation and editing in real ASP
-Classic projects. Stable version `1.0.0` is published on JetBrains Marketplace
-and GitHub.
+Classic projects. Stable version `1.2.0`, which adds optional MCP tools for AI
+agents, is published on JetBrains Marketplace and GitHub.
 
 Implemented capabilities:
 
@@ -84,14 +84,18 @@ Implemented capabilities:
   2,158 have no diagnostics; the remaining 42 are classified as 40 real source
   defects and two non-ASP service files;
 - smoke, regression, and integration tests for the lexer, parser, resolve,
-  include support, Find Usages, and formatter.
+  include support, Find Usages, and formatter;
+- an optional JetBrains MCP Server toolset for connected AI agents. It exposes
+  safe whole-file formatting, plugin-owned inspections, visible symbols,
+  include-aware Find Usages, symbol-at-position resolution, and the transitive
+  include graph without creating a second parser or semantic model.
 
-Version `0.0.8` was built against PhpStorm 2026.1.2. Stable `1.0.0` is compiled
+Version `0.0.8` was built against PhpStorm 2026.1.2. Stable `1.1.0` is compiled
 against the minimum PhpStorm 2025.2.4 platform (PS-252.27397.112) with Java 21
 bytecode; PhpStorm 2026.2.3 (PS-262.10968.76) remains the main development
 target.
 
-All 224 ordinary automated tests and plugin ZIP assembly pass on PhpStorm
+All 241 ordinary automated tests and plugin ZIP assembly pass on PhpStorm
 2025.2.4 and 2026.2.3. On 262, validation also covers 21 `Bugs/` files, eight
 `core`/DAL files, editor scenarios for `Bugs/index.asp`, `Bugs/BugAdd.asp`,
 `Bugs/BugInfo.asp`, and `customers/orderinfo.asp`, plus all 2,203 supported
@@ -114,13 +118,12 @@ uncommitted edits. All nine batches reported `Violations: 0`.
    scriptlets are tested. The development branch now implements line-based
    selection-aware formatting for `.asp`, `.inc`, and `.vbs`: it reads
    file-wide control-flow context but only writes selected whole lines. This is
-   the focused feature of the locally prepared `1.1.0` candidate; Marketplace
-   version `1.0.0` does not include it.
+   the focused feature of stable `1.1.0`.
 3. Resolve does not yet use a stub index for arbitrary project symbols and
    still needs broader complex-shadowing and class-member coverage.
 4. Missing includes and undeclared identifiers under `Option Explicit` are
    inspected; unused declarations are not.
-5. Stable `1.0.0` is published on GitHub Releases and JetBrains Marketplace.
+5. Stable `1.1.0` is published on GitHub Releases and JetBrains Marketplace.
    Automated release gates, isolated-sandbox startup, and manual validation
    are complete. The `1.0.x` line is reserved for regressions and compatibility
    fixes.
@@ -190,7 +193,7 @@ Version `1.1.0` is intentionally limited to selection-aware formatting plus
 the control-flow correction required for multiline block-opening statements.
 No unrelated code-analysis feature is included in this release.
 
-Required criteria, all complete in the local release candidate:
+Required criteria, all complete in the published release:
 
 - [x] Selected `.asp`, `.inc`, and `.vbs` physical lines receive normal
   spacing, keyword case, continuation, delimiter, and indentation rules while
@@ -202,7 +205,7 @@ Required criteria, all complete in the local release candidate:
   multiline `If ... Then` statements joined with `_`.
 - [x] A real selected SQL-construction block in `customers/orderinfo.asp`
   formats in under five seconds and is unchanged on the second pass.
-- [x] All 224 ordinary tests pass on PhpStorm 2025.2.4 and 2026.2.3.
+- [x] All 235 release tests pass on PhpStorm 2025.2.4 and 2026.2.3.
 - [x] All 2,203 supported files in the current TTS checkout pass the formatter
   safety audit on PhpStorm 2026.2.3.
 - [x] Plugin Verifier reports compatibility on PhpStorm 2025.2.4 and 2026.2.3,
@@ -211,8 +214,8 @@ Required criteria, all complete in the local release candidate:
   and PyCharm.
 - [x] The plugin ZIP, project configuration, and plugin structure checks pass.
 
-The candidate is prepared but has not been committed, tagged, published as a
-GitHub Release, or uploaded to JetBrains Marketplace.
+The release is committed, tagged as `v1.1.0`, published on GitHub, and uploaded
+to JetBrains Marketplace.
 
 Unused-declaration inspection, deeper type inference and default members, a
 project-wide stub index, additional COM catalogs, Quick Documentation,
@@ -220,6 +223,21 @@ project-wide stub index, additional COM catalogs, Quick Documentation,
 included in 1.1.0 and remain planned for later releases.
 
 ## Implementation priorities
+
+### First 1.2 feature: MCP tools for AI agents — implemented
+
+- register six tools through the optional JetBrains MCP Server extension;
+- reuse the normal formatter, inspections, PSI resolve, include graph, and
+  Find Usages implementation rather than adding a parallel analyzer;
+- accept project-relative paths and reject paths outside project content roots;
+- keep line and column coordinates one-based and JSON results stable;
+- verify both extension registration and reflection-generated MCP schemas;
+- cover formatting, diagnostics, declarations, cross-include usages,
+  symbol-at-position lookup, missing includes, and include cycles in integration
+  tests.
+
+The public contract and setup instructions are in
+[`docs/MCP_TOOLS.md`](docs/MCP_TOOLS.md).
 
 ### 0. Formatter code safety — critical and continuously enforced
 
@@ -636,7 +654,7 @@ Acceptance criteria:
   and the ZIP is compatible with verified 262 and 263 platforms;
 - README documents actual capabilities, limitations, release automation, and
   the post-1.0 roadmap;
-- stable `1.0.0` is published on GitHub and JetBrains Marketplace.
+- stable `1.1.0` is published on GitHub and JetBrains Marketplace.
 
 ## Deferred backlog
 
@@ -660,11 +678,13 @@ Dedicated `global.asa` support:
    file-wide control-flow context and exact preservation outside selected lines.
 4. [x] Validate and prepare the focused `1.1.0` release candidate without
    publishing it.
-5. After explicit release approval, commit the candidate, tag `v1.1.0`, and
+5. [x] After explicit release approval, commit the candidate, tag `v1.1.0`, and
    publish the GitHub Release that triggers the Marketplace workflow.
-6. Fix compatibility issues and regressions in supported patch releases.
-7. Continue with the remaining post-1.0 work: unused declarations, deeper type
+6. [x] Add optional MCP tools as the first 1.2 feature so connected AI agents
+   can use the plugin's existing formatter and semantic services.
+7. Fix compatibility issues and regressions in supported patch releases.
+8. Continue with the remaining post-1.0 work: unused declarations, deeper type
    inference, default members, Quick Documentation, a stub index, and
    `global.asa`.
-8. Repeat parser classification whenever lexer/parser behavior changes. The 40
+9. Repeat parser classification whenever lexer/parser behavior changes. The 40
    defective TTS source files and two service-data files do not block releases.

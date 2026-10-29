@@ -10,6 +10,7 @@
           <li>Relative and virtual include resolution with missing-include diagnostics.</li>
           <li>Conservative undeclared-identifier diagnostics for <code>Option Explicit</code>.</li>
           <li>Formatting for VBScript and mixed ASP/HTML with code-preservation safeguards.</li>
+          <li>Optional MCP tools let connected AI agents use formatting, inspections, symbols, usages, and include resolution.</li>
           <li>Completion for ASP built-ins, user classes and common ADO/Scripting/MSXML/WinHTTP objects.</li>
         </ul>
         <p>Supported source types: <code>.asp</code>, <code>.inc</code> and <code>.vbs</code>.</p>
@@ -26,6 +27,7 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.xml</depends>
+    <depends optional="true" config-file="asp-classic-mcp.xml">com.intellij.mcpServer</depends>
 
     <projectListeners>
         <listener class="dvamuch.aspclassiclanguagesupport2.feedback.AspFeedbackFileEditorListener"

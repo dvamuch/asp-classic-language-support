@@ -1,6 +1,6 @@
 # ASP Classic Language Support after 1.0
 
-Stable version `1.0.0` has been published. This document defines priorities for
+Stable version `1.2.0` has been published. This document defines priorities for
 the `1.x` line without mixing new features with `1.0.x` patch releases, which
 are reserved for compatibility fixes and regressions.
 
@@ -41,7 +41,27 @@ not suppress server-side expression evaluation. Include directives and nested
 HTML comments are reversibly escaped using the same convention as the native
 JetBrains HTML commenter, then restored exactly when comments are toggled off.
 
-## 1.2 — code analysis improvements
+## 1.2 — AI-agent integration and code analysis improvements
+
+The first 1.2 feature is an optional JetBrains MCP Server integration. It makes
+the plugin's existing semantic services available to connected AI agents
+without duplicating the parser or building a separate command-line service.
+
+- [x] Format a complete `.asp`, `.inc`, or `.vbs` file through MCP using the
+  normal formatter and safety guard.
+- [x] Return parser errors and the plugin-owned missing-include and
+  `Option Explicit` diagnostics.
+- [x] List local/include declarations, resolve a symbol at a source position,
+  and find include-aware usages.
+- [x] Resolve the transitive include graph with missing-target and cycle
+  information.
+- [x] Keep the MCP dependency optional and restrict tool paths to the current
+  project's content roots.
+
+The tool contract and setup notes are documented in
+[`MCP_TOOLS.md`](MCP_TOOLS.md).
+
+Later 1.x analysis work:
 
 - An unused `Dim` and `Const` inspection after a dedicated false-positive
   audit on dynamic ASP/include code.

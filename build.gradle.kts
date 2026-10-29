@@ -3,12 +3,13 @@ import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.20"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.grammarkit") version "2023.3.0.3"
 }
 
 group = "dvamuch"
-version = "1.1.0"
+version = "1.2.0"
 
 // Grammar-Kit loads IntelliJ services in forked Java processes. Keep their
 // runtime state outside the immutable IDE SDK extracted into Gradle's cache.
@@ -23,9 +24,15 @@ repositories {
 
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
+    // The 2025.2 SDK repackages kotlinx.serialization into a platform utility
+    // JAR without version metadata. Keep an explicit compile-only coordinate so
+    // the Kotlin serialization compiler can validate and generate MCP DTOs;
+    // the IDE-provided runtime remains authoritative and is not bundled.
+    compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.9.0")
     intellijPlatform {
         val localIdePath = providers.gradleProperty("localIdePath").orNull
         if (localIdePath != null) local(localIdePath) else phpstorm("2025.2.4")
+        bundledPlugin("com.intellij.mcpServer")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")
@@ -39,11 +46,10 @@ intellijPlatform {
 
         changeNotes = """
             <ul>
-              <li>Adds selection-aware formatting for ASP, INC and standalone VBS files.</li>
-              <li>Uses file-wide VBScript control-flow context while keeping lines outside the selection unchanged.</li>
-              <li>Preserves safe ASP delimiter boundaries, Undo, mixed line endings and second-pass idempotence.</li>
-              <li>Fixes indentation after multiline block-opening statements joined with the VBScript continuation marker.</li>
-              <li>Uses HTML comments for template markup and VBScript comments for ASP code when toggling line comments.</li>
+              <li>Adds six optional ASP Classic tools to the bundled JetBrains MCP Server.</li>
+              <li>Lets connected AI agents format files, run plugin-owned inspections, and inspect symbols and usages.</li>
+              <li>Exposes transitive include resolution with missing-target and cycle information.</li>
+              <li>Restricts MCP file access to the current project's content roots.</li>
             </ul>
         """.trimIndent()
     }
